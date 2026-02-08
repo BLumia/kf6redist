@@ -29,6 +29,10 @@ Build-CMakeProject `
     -InstallPrefix "kf6redist-install"
 
 Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules"
+# Requires python3 with lxml if WITH_ICON_GENERATION is enabled
+Build-KF6Module -KfVer $kfver -RepoName "breeze-icons" `
+    -PatchFiles "./patches/breeze-icons-6.20.0-20251124.diff" `
+    -CMakeArgs "-DBUILD_TESTING=OFF", "-DSKIP_INSTALL_ICONS=ON", "-DWITH_ICON_GENERATION=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcoreaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kitemviews" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfig" -CMakeArgs "-DBUILD_TESTING=OFF"
@@ -47,11 +51,7 @@ Build-CMakeProject `
     -InstallPrefix "kf6redist-install"
 
 Build-KF6Module -KfVer $kfver -RepoName "karchive" `
-    -CMakeArgs "-DBUILD_TESTING=OFF", "-DWITH_LIBZSTD=OFF", "-DWITH_BZIP2=OFF", `
-               "-DWITH_LIBLZMA=OFF", "-DWITH_OPENSSL=OFF"
-# Requires python3 with lxml if WITH_ICON_GENERATION is enabled
-Build-KF6Module -KfVer $kfver -RepoName "breeze-icons" `
-    -CMakeArgs "-DBUILD_TESTING=OFF", "-DSKIP_INSTALL_ICONS=ON", "-DWITH_ICON_GENERATION=OFF"
+    -CMakeArgs "-DBUILD_TESTING=OFF", "-DWITH_LIBZSTD=OFF", "-DWITH_BZIP2=OFF", "-DWITH_LIBLZMA=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kiconthemes" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kxmlgui" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kwindowsystem" -CMakeArgs "-DBUILD_TESTING=OFF"

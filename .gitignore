@@ -1,0 +1,12 @@
+# cloned repos
+v*-*/
+master-*/
+
+# build folders
+build/
+
+# binary folders
+kf6redis-*/
+
+# local script
+env.local.ps1

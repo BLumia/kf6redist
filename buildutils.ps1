@@ -122,6 +122,7 @@ function Invoke-ExternalCommand {
 .DESCRIPTION
     Clones repository, configures with CMake, builds, and installs.
     Supports tags, branches, and commit hashes. Skips completed builds via marker file.
+    Optionally applies patches after cloning and before configuration.
 .PARAMETER RepoUrl
     Full Git repository URL (e.g., https://github.com/user/repo.git)
 .PARAMETER Version
@@ -130,6 +131,9 @@ function Invoke-ExternalCommand {
     Project identifier for directory naming (e.g., "extra-cmake-modules")
 .PARAMETER SourceSubdir
     Optional subdirectory within repo containing CMakeLists.txt
+.PARAMETER PatchFiles
+    Optional list of patch files to apply after cloning (relative to current directory).
+    Patches are applied in the order specified using 'git apply --ignore-whitespace'.
 .PARAMETER CMakeArgs
     Additional CMake arguments (e.g., @("-DBUILD_TESTING=OFF"))
 .PARAMETER InstallPrefix
@@ -149,11 +153,39 @@ function Build-CMakeProject {
         [Parameter(Mandatory)]
         [string]$ProjectName,
         [string]$SourceSubdir = "",
+        [string[]]$PatchFiles = @(),
         [string[]]$CMakeArgs = @(),
         [string]$InstallPrefix = "kf6redist-install",
         [string]$BuildBaseDir = "build",
         [switch]$ForceRebuild
     )
+
+    if ($env:GITHUB_ACTIONS -eq "true") {
+        Write-Host "::group::Building: $ProjectName"
+    }
+
+    # Resolve patch paths to absolute paths IMMEDIATELY (before any directory changes)
+    # This prevents failures when $PWD changes later (e.g., during git checkout)
+    $absolutePatchFiles = @()
+    if ($PatchFiles.Count -gt 0) {
+        foreach ($patch in $PatchFiles) {
+            try {
+                # Resolve relative to caller's current directory at function invocation time
+                $absPath = Resolve-Path -LiteralPath $patch -ErrorAction Stop
+                $absolutePatchFiles += $absPath.ProviderPath
+                Write-Debug "Resolved patch path: '$patch' -> '$($absPath.ProviderPath)'"
+            } catch {
+                # Provide helpful error message with context
+                $currentDir = $PWD.Path
+                $suggestedPath = Join-Path $PSScriptRoot $patch
+                throw "Patch file not found: '$patch'`n" +
+                      "  Current directory: $currentDir`n" +
+                      "  Tried resolving from current directory.`n" +
+                      "  Hint: Use absolute path or ensure patch exists relative to script directory.`n" +
+                      "  Suggested absolute path: $suggestedPath"
+            }
+        }
+    }
 
     $sourceDir = "${Version}-${ProjectName}"
     $buildDir  = Join-Path $BuildBaseDir "${Version}-${ProjectName}"
@@ -168,6 +200,9 @@ function Build-CMakeProject {
     Write-Host "`n[BUILD] ${ProjectName}@${Version}" -ForegroundColor Cyan
     Write-Host "        Repo: $RepoUrl" -ForegroundColor DarkGray
     if ($SourceSubdir) { Write-Host "        Subdir: $SourceSubdir" -ForegroundColor DarkGray }
+    if ($PatchFiles) {
+        Write-Host "        Patches: $($PatchFiles -join ', ')" -ForegroundColor DarkGray
+    }
 
     try {
         # Clean previous source checkout if exists
@@ -198,6 +233,22 @@ function Build-CMakeProject {
             } -Description "Git clone (branch/tag)"
         }
 
+        # Apply patches if specified
+        if ($absolutePatchFiles.Count -gt 0) {
+            Write-Host "  → Applying patches ..." -ForegroundColor Yellow
+            Push-Location $sourceDir
+            try {
+                foreach ($patchAbsPath in $absolutePatchFiles) {
+                    Write-Host "    → Applying: $(Split-Path -Leaf $patch)" -ForegroundColor DarkYellow
+                    Invoke-ExternalCommand -ScriptBlock {
+                        git apply --ignore-whitespace "$patchAbsPath" 2>&1
+                    } -Description "Apply patch: $patch"
+                }
+            } finally {
+                Pop-Location
+            }
+        }
+
         # Prepare build directory
         $null = New-Item -ItemType Directory -Path $buildDir -Force -ErrorAction Stop
 
@@ -225,12 +276,19 @@ function Build-CMakeProject {
 Built at: $(Get-Date -Format 'u')
 Repo: $RepoUrl
 Version: $Version
+Patches: $($PatchFiles -join '; ' -replace '^$','none')
 "@
         Set-Content -Path $doneFile -Value $markerContent -Force
         Write-Host "[✓] ${ProjectName}@${Version} build succeeded" -ForegroundColor Green
 
+        if ($env:GITHUB_ACTIONS -eq "true") {
+            Write-Host "::endgroup::"
+        }
     } catch {
         Write-Error "[✗] ${ProjectName}@${Version} build failed: $_"
+        if ($env:GITHUB_ACTIONS -eq "true") {
+            Write-Host "::endgroup::"
+        }
         # Clean up failed build artifacts
         if (Test-Path $buildDir) {
             Remove-Item -Recurse -Force $buildDir -ErrorAction SilentlyContinue
@@ -263,6 +321,7 @@ function Build-KF6Module {
         [string]$RepoName,
         [Parameter(Mandatory)]
         [string]$KfVer,
+        [string[]]$PatchFiles = @(),
         [string[]]$CMakeArgs = @(),
         [string]$InstallPrefix = "kf6redist-install",
         [switch]$ForceRebuild
@@ -273,6 +332,7 @@ function Build-KF6Module {
         -RepoUrl $repoUrl `
         -Version $KfVer `
         -ProjectName $RepoName `
+        -PatchFiles $PatchFiles `
         -CMakeArgs $CMakeArgs `
         -InstallPrefix $InstallPrefix `
         -ForceRebuild:$ForceRebuild

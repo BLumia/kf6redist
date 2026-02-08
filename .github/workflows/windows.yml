@@ -28,6 +28,10 @@ jobs:
       with:
         buckets: extras
         apps: gettext
+    - name: Enable long paths for Windows
+      run: |
+        New-ItemProperty -Path "HKLM:System\CurrentControlSet\Control\FileSystem" `
+          -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
     - name: build
       run: .\build.ps1
     - uses: actions/upload-artifact@v4
