@@ -1,0 +1,46 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index ac6a694..97e2024 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -38,6 +38,8 @@ include(GtkUpdateIconCache)
+ 
+ option(BUILD_QT5 "Build Qt5 style" ON)
+ option(BUILD_QT6 "Build with Qt6" ON)
++option(BUILD_CURSOR "Build Breeze Cursor" ON)
++option(BUILD_WITH_QTQUICK "Build with Qt Quick and Kirigami features enabled" ON)
+ 
+ set(QT_NO_CREATE_VERSIONLESS_TARGETS ON)
+ set(QT_NO_CREATE_VERSIONLESS_FUNCTIONS ON)
+@@ -85,8 +87,8 @@ function(build_Qt5)
+         IconThemes
+         WindowSystem)
+ 
+-    find_package(Qt5 ${QT5_MIN_VERSION} OPTIONAL_COMPONENTS Quick)
+-    if(${Qt5Quick_FOUND})
++    if(BUILD_WITH_QTQUICK)
++        find_package(Qt5 ${QT5_MIN_VERSION} OPTIONAL_COMPONENTS Quick)
+         find_package(KF5 ${KF5_MIN_VERSION} REQUIRED COMPONENTS Kirigami2)
+     endif()
+ 
+@@ -143,8 +145,8 @@ function(build_Qt6)
+         IconThemes
+         WindowSystem)
+ 
+-    find_package(Qt6 ${QT_MIN_VERSION} OPTIONAL_COMPONENTS Quick)
+-    if(${Qt6Quick_FOUND})
++    if(BUILD_WITH_QTQUICK)
++        find_package(Qt6 ${QT_MIN_VERSION} OPTIONAL_COMPONENTS Quick)
+         find_package(KF6KirigamiPlatform ${KF6_MIN_VERSION} REQUIRED)
+     endif()
+ 
+@@ -200,7 +202,9 @@ function(build_colors_and_cursors)
+     # only use ICONDIR and DATADIR which both do not depend on the version
+     include(KDEInstallDirs)
+     add_subdirectory(colors)
+-    add_subdirectory(cursors)
++    if(BUILD_CURSOR)
++        add_subdirectory(cursors)
++    endif()
+ endfunction()
+ 
+ build_colors_and_cursors()

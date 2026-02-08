@@ -19,7 +19,7 @@ Before starting, at least ensure you can build a Qt application without any non-
 These are required mainly by `ki18n`.
 
 - Python 3
-- gettext
+- gettext (can install from [Scoop](https://scoop.sh/) via: `scoop install gettext`)
 
 This is optional but suggested. It's available in GitHub Actions Windows environment.
 
@@ -49,6 +49,9 @@ After build, you can find the built binaries in `kf6redist-install` directory.
 The pre-built binaries are also a simple zip file which contains the built binaries, but you'll need a matching Qt installation to use them.
 
 To consume them, you need to set up your environment variables while building your own Qt/KF6 application. Simply add the path to `kf6redist-install` to `CMAKE_PREFIX_PATH` environment variable.
+
+> [!NOTE]
+> If you need to use `Ki18n`, you are very likely need to also have `python` and `gettext` installed.
 
 ## Notes
 

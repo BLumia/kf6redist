@@ -57,9 +57,10 @@ Build-KF6Module -KfVer $kfver -RepoName "kxmlgui" -CMakeArgs "-DBUILD_TESTING=OF
 Build-KF6Module -KfVer $kfver -RepoName "kwindowsystem" -CMakeArgs "-DBUILD_TESTING=OFF"
 
 Build-CMakeProject `
-    -RepoUrl "https://invent.kde.org/garywang/breeze.git" `
-    -Version "option-disable-quick" `
+    -RepoUrl "https://invent.kde.org/plasma/breeze.git" `
+    -Version $plasmaver `
     -ProjectName "breeze" `
     -InstallPrefix "kf6redist-install" `
-    -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_QT5=OFF", "-DWITH_DECORATIONS=OFF", "-DBUILD_WITH_QTQUICK=OFF"
+    -PatchFiles "./patches/breeze-option-no-quick-n-cursor.diff" `
+    -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_QT5=OFF", "-DWITH_DECORATIONS=OFF", "-DBUILD_WITH_QTQUICK=OFF", "-DBUILD_CURSOR=OFF"
 #endregion
