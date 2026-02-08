@@ -1,0 +1,36 @@
+name: Windows CI
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  msvc-qmake-build:
+  
+    strategy:
+      matrix:
+        include:
+          - qt_ver: '6.10.2'
+            vs: '2022'
+            aqt_arch: 'win64_msvc2022_64'
+            msvc_arch: 'x64'
+
+    runs-on: windows-2022
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        arch: ${{ matrix.aqt_arch }}
+        version: ${{ matrix.qt_ver }}
+        modules: 'qtimageformats'
+        cache: true
+    - uses: MinoruSekine/setup-scoop@v4.0.2
+      with:
+        buckets: extras
+        apps: gettext
+    - name: build
+      run: .\build.ps1
+    - uses: actions/upload-artifact@v4
+      with:
+        name: "win${{ matrix.msvc_arch }}-msvc${{ matrix.vs }}-qt${{ matrix.qt_ver }}-kf6.22.0"
+        path: kf6redist-install/*

@@ -1,0 +1,1 @@
+$env:CMAKE_PREFIX_PATH = "kf6redist-install"
