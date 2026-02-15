@@ -1,28 +1,32 @@
 name: Windows CI
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      qt_ver:
+        description: 'Qt Version to use'
+        required: false
+        default: '6.10.2'
 
 jobs:
   msvc-build:
-  
-    strategy:
-      matrix:
-        include:
-          - qt_ver: '6.10.2'
-            vs: '2022'
-            aqt_arch: 'win64_msvc2022_64'
-            msvc_arch: 'x64'
-
     runs-on: windows-2022
+
+    env:
+      QT_VER: ${{ inputs.qt_ver || '6.10.2' }}
+      VS_VER: '2022'
+      AQT_ARCH: 'win64_msvc2022_64'
+      MSVC_ARCH: 'x64'
 
     steps:
     - uses: actions/checkout@v5
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        arch: ${{ matrix.aqt_arch }}
-        version: ${{ matrix.qt_ver }}
-        modules: 'qtimageformats'
+        arch: ${{ env.AQT_ARCH }}
+        version: ${{ env.QT_VER }}
         cache: true
     - uses: MinoruSekine/setup-scoop@v4.0.2
       with:
@@ -36,5 +40,5 @@ jobs:
       run: .\build.ps1
     - uses: actions/upload-artifact@v4
       with:
-        name: "win${{ matrix.msvc_arch }}-msvc${{ matrix.vs }}-qt${{ matrix.qt_ver }}-kf6.22.0"
+        name: "win${{ env.MSVC_ARCH }}-msvc${{ env.VS_VER }}-qt${{ env.QT_VER }}${{ inputs.tag_ver && format('-{0}', inputs.tag_ver) || '' }}-kf6.22.0"
         path: kf6redist-install/*
