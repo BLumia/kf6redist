@@ -4,7 +4,7 @@ $ProgressPreference = "SilentlyContinue"
 . "$PSScriptRoot\buildutils.ps1"
 
 #region Configuration
-$kfver = "v6.22.0"
+$kfver = "v6.23.0"
 $plasmaver = "v6.5.91"
 #endregion
 
@@ -31,7 +31,7 @@ Build-CMakeProject `
 Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules"
 # Requires python3 with lxml if WITH_ICON_GENERATION is enabled
 Build-KF6Module -KfVer $kfver -RepoName "breeze-icons" `
-    -PatchFiles "./patches/breeze-icons-6.20.0-20251124.diff" `
+    -PatchFiles "./patches/breeze-icons-std-filesystem-to-generate-symlink.diff" `
     -CMakeArgs "-DBUILD_TESTING=OFF", "-DSKIP_INSTALL_ICONS=ON", "-DWITH_ICON_GENERATION=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcoreaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kitemviews" -CMakeArgs "-DBUILD_TESTING=OFF"

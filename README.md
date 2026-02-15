@@ -57,7 +57,13 @@ To consume them, you need to set up your environment variables while building yo
 
 ### `ECMAddAppIcon`
 
-If you want to use `ecm_add_app_icon()` to generate application icon, you will also need `icoutils` (be able to find `icotool.exe` in your `PATH` will be enough), otherwise icon generation will be skipped. An easy way to get `icoutils` is to get it from MSYS2 (with 4 DLLs).
+If you want to use `ecm_add_app_icon()` to generate application icon, you will also need `icoutils` (be able to find `icotool.exe` in your `PATH` will be enough), otherwise icon generation will be skipped.
+
+There are multiple ways to get `icoutils`, you can either:
+
+- Use [`icoutils-rs`](https://crates.io/crates/icoutils-rs) which is maintained by myself: `cargo binstall icoutils-rs`.
+- Get `icoutils` package from MSYS2 and use its `icotool.exe` binary (needs 4 extra DLLs also from MSYS2).
+- Other possible methods...
 
 ### Why build `breeze`? Isn't it from Plasma instead of KF?
 
