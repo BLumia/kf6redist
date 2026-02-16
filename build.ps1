@@ -23,9 +23,9 @@ Check-ExecutableExists -ExecutableName "python.exe"
 
 # For ki18n
 Build-CMakeProject `
-    -RepoUrl "https://github.com/BLumia/proxy-libintl.git" `
+    -RepoUrl "https://github.com/BLumia/libintl.git" `
     -Version "master" `
-    -ProjectName "proxy-libintl" `
+    -ProjectName "libintl" `
     -InstallPrefix "kf6redist-install"
 
 Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules"

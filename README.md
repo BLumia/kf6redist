@@ -28,7 +28,7 @@ This is optional but suggested. It's available in GitHub Actions Windows environ
 And these two dependencies will be automatically downloaded and built by the script so you don't need to worry about them:
 
 - zlib
-- libintl (we use [`proxy-libintl`](https://github.com/BLumia/proxy-libintl) for easier build)
+- libintl (we use [GNUWin32's libintl](https://gnuwin32.sourceforge.net/packages/libintl.htm) with [a CMake patch](https://github.com/BLumia/libintl/commit/5d6d942675518a726c14145e599c2eebb9f1300e) for easier build)
 
 ### Start building
 
