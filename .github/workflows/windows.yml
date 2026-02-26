@@ -40,5 +40,5 @@ jobs:
       run: .\build.ps1
     - uses: actions/upload-artifact@v4
       with:
-        name: "win${{ env.MSVC_ARCH }}-msvc${{ env.VS_VER }}-qt${{ env.QT_VER }}${{ inputs.tag_ver && format('-{0}', inputs.tag_ver) || '' }}-kf6.22.0"
+        name: "win${{ env.MSVC_ARCH }}-msvc${{ env.VS_VER }}-qt${{ env.QT_VER }}${{ inputs.tag_ver && format('-{0}', inputs.tag_ver) || '' }}-kf6.23.0"
         path: kf6redist-install/*

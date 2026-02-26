@@ -7,12 +7,12 @@ function Test-ExecutableExists {
         [Parameter(Mandatory = $True, Position = 0)]
         [string]$ExecutableName
     )
-    
+
     # Use Get-Command to check for the executable
     # -Type Application ensures only external programs are considered
     # -ErrorAction SilentlyContinue suppresses error messages if the command is not found
     $command = Get-Command -Name $ExecutableName -CommandType Application -ErrorAction SilentlyContinue
-    
+
     # Return $true if $command is not $null (i.e., the executable was found), otherwise $false
     return [bool]$command
 }
@@ -34,22 +34,38 @@ function Check-ExecutableExists {
 
 <#
 .SYNOPSIS
-    Initialize build environment by loading env.local.ps1 or env.ps1
+    Initialize build environment by loading environment configuration scripts.
 .DESCRIPTION
     Loads environment configuration scripts with priority:
-    1. env.local.ps1 (local override, not committed to VCS)
-    2. env.ps1       (shared defaults)
-    
-    Sets $env:ENV_SCRIPT_LOADED to prevent duplicate loading.
+    1. <Name>.local.ps1 (local override, not committed to VCS)
+    2. <Name>.ps1       (shared defaults)
+
+    Sets $env:ENV_SCRIPT_LOADED to prevent duplicate loading in the same session.
     Must be dot-sourced to properly set variables in caller's scope.
-    
+
+.PARAMETER EnvironmentName
+    The base name of the environment script to load.
+    Default is 'env', which looks for 'env.local.ps1' or 'env.ps1'.
+    Example: 'env-msys2' will look for 'env-msys2.local.ps1' or 'env-msys2.ps1'.
+    Do not include the .ps1 extension.
+
 .EXAMPLE
     . Initialize-BuildEnvironment
+    # Loads env.local.ps1 or env.ps1
+
+.EXAMPLE
+    . Initialize-BuildEnvironment -EnvironmentName "env-msys2"
+    # Loads env-msys2.local.ps1 or env-msys2.ps1
 #>
 function Initialize-BuildEnvironment {
-    # Skip if already loaded in current session
+    param(
+        [string]$EnvironmentName = 'env'
+    )
+
+    # Skip if already loaded in current session (Prevent variable pollution)
     if ($env:ENV_SCRIPT_LOADED) {
-        Write-Host "Environment script already loaded from: $env:ENV_SCRIPT_LOADED" -ForegroundColor Green
+        Write-Host "Environment script already loaded from: $env:ENV_SCRIPT_LOADED" -ForegroundColor Yellow
+        Write-Host "Skipping initialization to prevent conflicts." -ForegroundColor Gray
         return
     }
 
@@ -69,9 +85,10 @@ function Initialize-BuildEnvironment {
         }
     }
 
-    # Define environment script paths with priority order
-    $private:localEnvPath = Join-Path -Path $private:scriptDir -ChildPath "env.local.ps1"
-    $private:globalEnvPath = Join-Path -Path $private:scriptDir -ChildPath "env.ps1"
+    # Construct environment script paths based on the provided name
+    # Pattern: <Name>.local.ps1 > <Name>.ps1
+    $private:localEnvPath = Join-Path -Path $private:scriptDir -ChildPath "${EnvironmentName}.local.ps1"
+    $private:globalEnvPath = Join-Path -Path $private:scriptDir -ChildPath "${EnvironmentName}.ps1"
 
     # Execute environment script based on priority rules
     if (Test-Path -Path $private:localEnvPath -PathType Leaf) {
@@ -85,7 +102,7 @@ function Initialize-BuildEnvironment {
         $env:ENV_SCRIPT_LOADED = $private:globalEnvPath
     }
     else {
-        Write-Error "Environment script not found in $private:scriptDir (expected env.local.ps1 or env.ps1)"
+        Write-Error "Environment script not found in $private:scriptDir`nExpected: ${EnvironmentName}.local.ps1 or ${EnvironmentName}.ps1"
         return
     }
 
@@ -118,137 +135,207 @@ function Invoke-ExternalCommand {
 
 <#
 .SYNOPSIS
-    Build generic CMake project from Git repository
+    Build generic CMake project from Git repository or local source path
 .DESCRIPTION
-    Clones repository, configures with CMake, builds, and installs.
-    Supports tags, branches, and commit hashes. Skips completed builds via marker file.
-    Optionally applies patches after cloning and before configuration.
+    Supports two modes:
+      1. Remote mode: Clones Git repository (with optional patches), builds, and installs
+      2. Local mode: Builds directly from existing local source directory
+
+    Skips completed builds via marker file in build directory.
+    Supports tags, branches, and commit hashes in remote mode.
 .PARAMETER RepoUrl
     Full Git repository URL (e.g., https://github.com/user/repo.git)
+    Required in RemoteSource mode.
 .PARAMETER Version
     Version identifier: tag, branch name, or commit hash
-.PARAMETER ProjectName
-    Project identifier for directory naming (e.g., "extra-cmake-modules")
+    Required in RemoteSource mode.
+.PARAMETER SourcePath
+    Local path to existing source directory (absolute or relative)
+    Required in LocalSource mode. Skips cloning and patching.
+.PARAMETER RepoName
+    Project identifier for directory naming and logging (e.g., "extra-cmake-modules")
 .PARAMETER SourceSubdir
-    Optional subdirectory within repo containing CMakeLists.txt
+    Optional subdirectory within repo/source containing CMakeLists.txt
 .PARAMETER PatchFiles
-    Optional list of patch files to apply after cloning (relative to current directory).
-    Patches are applied in the order specified using 'git apply --ignore-whitespace'.
+    Optional list of patch files to apply after cloning (RemoteSource mode only).
+    Patches are applied in order using 'git apply --ignore-whitespace'.
+.PARAMETER SkipCloneIfExist
+    (RemoteSource mode only) Skip cloning if source directory already exists.
+    When skipped, patching is also skipped (assumes patches were applied previously).
 .PARAMETER CMakeArgs
     Additional CMake arguments (e.g., @("-DBUILD_TESTING=OFF"))
 .PARAMETER InstallPrefix
     Installation root directory (default: kf6redist-install)
 .PARAMETER BuildBaseDir
     Root directory for build outputs (default: build)
+.PARAMETER BuildType
+    CMake build type (default: Release)
 .PARAMETER ForceRebuild
     Ignore completion marker and rebuild from scratch
+.PARAMETER SkipInstall
+    Avoid/skip install
+.PARAMETER NoSourceIdentifierFolder
+    Avoid creating a subfolder as the source identifier (e.g., simply ""build/" instead of "build/v1.2.3-reponame/")
 #>
 function Build-CMakeProject {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = "RemoteSource")]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory, ParameterSetName = "RemoteSource")]
         [string]$RepoUrl,
-        [Parameter(Mandatory)]
+
+        [Parameter(Mandatory, ParameterSetName = "RemoteSource")]
         [string]$Version,
+
+        [Parameter(Mandatory, ParameterSetName = "LocalSource")]
+        [string]$SourcePath,
+
         [Parameter(Mandatory)]
-        [string]$ProjectName,
-        [string]$SourceSubdir = "",
+        [string]$RepoName,
+
+        [Parameter(ParameterSetName = "RemoteSource")]
         [string[]]$PatchFiles = @(),
+
+        [Parameter(ParameterSetName = "RemoteSource")]
+        [switch]$SkipCloneIfExist,
+
+        [string]$SourceSubdir = "",
         [string[]]$CMakeArgs = @(),
         [string]$InstallPrefix = "kf6redist-install",
         [string]$BuildBaseDir = "build",
-        [switch]$ForceRebuild
+        [string]$BuildType = "Release",
+        [switch]$ForceRebuild,
+        [switch]$SkipInstall,
+        [switch]$NoSourceIdentifierFolder
     )
 
     if ($env:GITHUB_ACTIONS -eq "true") {
-        Write-Host "::group::Building: $ProjectName"
+        Write-Host "::group::Building: $RepoName"
     }
 
-    # Resolve patch paths to absolute paths IMMEDIATELY (before any directory changes)
-    # This prevents failures when $PWD changes later (e.g., during git checkout)
-    $absolutePatchFiles = @()
-    if ($PatchFiles.Count -gt 0) {
-        foreach ($patch in $PatchFiles) {
-            try {
-                # Resolve relative to caller's current directory at function invocation time
-                $absPath = Resolve-Path -LiteralPath $patch -ErrorAction Stop
-                $absolutePatchFiles += $absPath.ProviderPath
-                Write-Debug "Resolved patch path: '$patch' -> '$($absPath.ProviderPath)'"
-            } catch {
-                # Provide helpful error message with context
-                $currentDir = $PWD.Path
-                $suggestedPath = Join-Path $PSScriptRoot $patch
-                throw "Patch file not found: '$patch'`n" +
-                      "  Current directory: $currentDir`n" +
-                      "  Tried resolving from current directory.`n" +
-                      "  Hint: Use absolute path or ensure patch exists relative to script directory.`n" +
-                      "  Suggested absolute path: $suggestedPath"
-            }
+    # Determine mode and set up paths
+    $isRemoteMode = ($PSCmdlet.ParameterSetName -eq "RemoteSource")
+    if ($isRemoteMode) {
+        $sourceDir = "${Version}-${RepoName}"
+        $buildDir  = $NoSourceIdentifierFolder ? $BuildBaseDir : (Join-Path $BuildBaseDir "${Version}-${RepoName}")
+        $sourceType = "remote"
+        $sourceIdentifier = "${Version}-${RepoName}"
+    } else {
+        # LocalSource mode: normalize path immediately
+        try {
+            $sourceDir = Resolve-Path -LiteralPath $SourcePath -ErrorAction Stop
+        } catch {
+            throw "Source path not found: '$SourcePath' (current dir: $($PWD.Path))"
         }
+        $buildDir  = $NoSourceIdentifierFolder ? $BuildBaseDir : (Join-Path $BuildBaseDir "local-${RepoName}")
+        $sourceType = "local"
+        $sourceIdentifier = "local-${RepoName}"
     }
 
-    $sourceDir = "${Version}-${ProjectName}"
-    $buildDir  = Join-Path $BuildBaseDir "${Version}-${ProjectName}"
-    $doneFile  = Join-Path $buildDir ".ci-build-done"
+    $doneFile = Join-Path $buildDir ".ci-build-done"
 
-    # Skip if already successfully built
+    # Skip if already successfully built (unless forced)
     if (-not $ForceRebuild -and (Test-Path -LiteralPath $doneFile)) {
-        Write-Host "[SKIP] ${ProjectName}@${Version} already built" -ForegroundColor Green
+        Write-Host "[SKIP] ${RepoName}@${sourceIdentifier} already built" -ForegroundColor Green
+        if ($env:GITHUB_ACTIONS -eq "true") {
+            Write-Host "::endgroup::"
+        }
         return
     }
 
-    Write-Host "`n[BUILD] ${ProjectName}@${Version}" -ForegroundColor Cyan
-    Write-Host "        Repo: $RepoUrl" -ForegroundColor DarkGray
-    if ($SourceSubdir) { Write-Host "        Subdir: $SourceSubdir" -ForegroundColor DarkGray }
-    if ($PatchFiles) {
-        Write-Host "        Patches: $($PatchFiles -join ', ')" -ForegroundColor DarkGray
+    Write-Host "`n[BUILD] ${RepoName}@${sourceIdentifier}" -ForegroundColor Cyan
+    if ($isRemoteMode) {
+        Write-Host "        Repo: $RepoUrl" -ForegroundColor DarkGray
+        if ($PatchFiles) {
+            Write-Host "        Patches: $($PatchFiles -join ', ')" -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Host "        Local source: $sourceDir" -ForegroundColor DarkGray
+    }
+    if ($SourceSubdir) {
+        Write-Host "        Subdir: $SourceSubdir" -ForegroundColor DarkGray
     }
 
     try {
-        # Clean previous source checkout if exists
-        if (Test-Path -LiteralPath $sourceDir) {
-            Write-Host "  → Cleaning source directory: $sourceDir" -ForegroundColor Yellow
-            Remove-Item -Recurse -Force $sourceDir -ErrorAction Stop
-        }
+        # ========== REMOTE MODE: Clone + Patching ==========
+        if ($isRemoteMode) {
+            $shouldClone = $true
 
-        # Clone repository
-        Write-Host "  → Cloning repository (version: $Version) ..." -ForegroundColor Yellow
-        if ($Version -match '^[0-9a-f]{7,40}$') {
-            # Commit hash: clone then checkout
-            Invoke-ExternalCommand -ScriptBlock {
-                git clone --depth 1 $RepoUrl $sourceDir --quiet
-            } -Description "Git clone"
-            Push-Location $sourceDir
-            try {
-                Invoke-ExternalCommand -ScriptBlock {
-                    git checkout $Version --quiet
-                } -Description "Git checkout commit"
-            } finally {
-                Pop-Location
+            # Check if we can skip cloning
+            if ($SkipCloneIfExist -and (Test-Path -LiteralPath $sourceDir -PathType Container)) {
+                Write-Host "  → Source directory exists, skipping clone/patching (SkipCloneIfExist)" -ForegroundColor Yellow
+                $shouldClone = $false
             }
-        } else {
-            # Tag or branch: direct clone with --branch
-            Invoke-ExternalCommand -ScriptBlock {
-                git clone --depth 1 --branch $Version $RepoUrl $sourceDir --quiet
-            } -Description "Git clone (branch/tag)"
-        }
+            # Always clean if we need to clone (or if directory exists but shouldn't)
+            elseif (Test-Path -LiteralPath $sourceDir) {
+                Write-Host "  → Cleaning source directory: $sourceDir" -ForegroundColor Yellow
+                Remove-Item -Recurse -Force $sourceDir -ErrorAction Stop
+            }
 
-        # Apply patches if specified
-        if ($absolutePatchFiles.Count -gt 0) {
-            Write-Host "  → Applying patches ..." -ForegroundColor Yellow
-            Push-Location $sourceDir
-            try {
-                foreach ($patchAbsPath in $absolutePatchFiles) {
-                    Write-Host "    → Applying: $(Split-Path -Leaf $patch)" -ForegroundColor DarkYellow
+            # Perform clone + checkout if needed
+            if ($shouldClone) {
+                Write-Host "  → Cloning repository (version: $Version) ..." -ForegroundColor Yellow
+                if ($Version -match '^[0-9a-f]{7,40}$') {
+                    # Commit hash: clone then checkout
                     Invoke-ExternalCommand -ScriptBlock {
-                        git apply --ignore-whitespace "$patchAbsPath" 2>&1
-                    } -Description "Apply patch: $patch"
+                        git clone --depth 1 $RepoUrl $sourceDir --quiet
+                    } -Description "Git clone"
+                    Push-Location $sourceDir
+                    try {
+                        Invoke-ExternalCommand -ScriptBlock {
+                            git checkout $Version --quiet
+                        } -Description "Git checkout commit"
+                    } finally {
+                        Pop-Location
+                    }
+                } else {
+                    # Tag or branch: direct clone with --branch
+                    Invoke-ExternalCommand -ScriptBlock {
+                        git clone --depth 1 --branch $Version $RepoUrl $sourceDir --quiet
+                    } -Description "Git clone (branch/tag)"
                 }
-            } finally {
-                Pop-Location
+
+                # Resolve patch paths BEFORE directory changes (critical!)
+                $absolutePatchFiles = @()
+                foreach ($patch in $PatchFiles) {
+                    try {
+                        $absPath = Resolve-Path -LiteralPath $patch -ErrorAction Stop
+                        $absolutePatchFiles += $absPath.ProviderPath
+                    } catch {
+                        $currentDir = $PWD.Path
+                        $suggestedPath = Join-Path $PSScriptRoot $patch
+                        throw "Patch file not found: '$patch'`n" +
+                              "  Current directory: $currentDir`n" +
+                              "  Suggested path: $suggestedPath"
+                    }
+                }
+
+                # Apply patches if needed
+                if ($absolutePatchFiles.Count -gt 0) {
+                    Write-Host "  → Applying patches ..." -ForegroundColor Yellow
+                    Push-Location $sourceDir
+                    try {
+                        foreach ($patchAbsPath in $absolutePatchFiles) {
+                            $patchName = Split-Path -Leaf $patchAbsPath
+                            Write-Host "    → Applying: $patchName" -ForegroundColor DarkYellow
+                            Invoke-ExternalCommand -ScriptBlock {
+                                git apply --ignore-whitespace "$patchAbsPath" 2>&1
+                            } -Description "Apply patch: $patchName"
+                        }
+                    } finally {
+                        Pop-Location
+                    }
+                }
             }
         }
+        # ========== LOCAL MODE: Validate source path ==========
+        else {
+            if (-not (Test-Path -LiteralPath $sourceDir -PathType Container)) {
+                throw "Local source directory not found: $sourceDir"
+            }
+            Write-Host "  → Using existing source directory" -ForegroundColor Yellow
+        }
 
+        # ========== COMMON BUILD STEPS ==========
         # Prepare build directory
         $null = New-Item -ItemType Directory -Path $buildDir -Force -ErrorAction Stop
 
@@ -256,36 +343,53 @@ function Build-CMakeProject {
         Write-Host "  → Configuring with CMake ..." -ForegroundColor Yellow
         Invoke-ExternalCommand -ScriptBlock {
             $sourcePath = if ($SourceSubdir) { Join-Path $sourceDir $SourceSubdir } else { $sourceDir }
-            cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" @CMakeArgs
+            cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs
         } -Description "CMake configure"
 
         # Build
         Write-Host "  → Building ..." -ForegroundColor Yellow
         Invoke-ExternalCommand -ScriptBlock {
-            cmake --build "$buildDir" --config Release
+            cmake --build "$buildDir" --config "$BuildType"
         } -Description "Build"
 
         # Install
-        Write-Host "  → Installing to: $InstallPrefix" -ForegroundColor Yellow
-        Invoke-ExternalCommand -ScriptBlock {
-            cmake --install "$buildDir" --prefix "$InstallPrefix" --config Release
-        } -Description "Install"
+        if (-not $SkipInstall) {
+            Write-Host "  → Installing to: $InstallPrefix" -ForegroundColor Yellow
+            Invoke-ExternalCommand -ScriptBlock {
+                cmake --install "$buildDir" --prefix "$InstallPrefix" --config "$BuildType"
+            } -Description "Install"
+        } else {
+            Write-Host "  → Install step skipped." -ForegroundColor Yellow
+        }
 
-        # Create completion marker
-        $markerContent = @"
+        # Create completion marker with build metadata
+        $markerContent = if ($isRemoteMode) {
+            $patchList = if ($PatchFiles) { $PatchFiles -join ';' } else { 'none' }
+            @"
 Built at: $(Get-Date -Format 'u')
+Source: remote
 Repo: $RepoUrl
 Version: $Version
-Patches: $($PatchFiles -join '; ' -replace '^$','none')
+Patches: $patchList
+SkipCloneIfExist: $($SkipCloneIfExist.IsPresent)
+Type: $($BuildType)
 "@
+        } else {
+            @"
+Built at: $(Get-Date -Format 'u')
+Source: local
+Path: $sourceDir
+Type: $($BuildType)
+"@
+        }
         Set-Content -Path $doneFile -Value $markerContent -Force
-        Write-Host "[✓] ${ProjectName}@${Version} build succeeded" -ForegroundColor Green
+        Write-Host "[✓] ${RepoName}@${sourceIdentifier} build succeeded" -ForegroundColor Green
 
         if ($env:GITHUB_ACTIONS -eq "true") {
             Write-Host "::endgroup::"
         }
     } catch {
-        Write-Error "[✗] ${ProjectName}@${Version} build failed: $_"
+        Write-Error "[✗] ${RepoName}@${sourceIdentifier} build failed: $_"
         if ($env:GITHUB_ACTIONS -eq "true") {
             Write-Host "::endgroup::"
         }
@@ -331,7 +435,7 @@ function Build-KF6Module {
     Build-CMakeProject `
         -RepoUrl $repoUrl `
         -Version $KfVer `
-        -ProjectName $RepoName `
+        -RepoName $RepoName `
         -PatchFiles $PatchFiles `
         -CMakeArgs $CMakeArgs `
         -InstallPrefix $InstallPrefix `
@@ -344,7 +448,7 @@ function Build-KF6Module {
 .DESCRIPTION
     Locates Visual Studio installation using vswhere.exe, imports DevShell module,
     and configures build environment variables (PATH, LIB, INCLUDE, etc.).
-    
+
     Sets $env:VS_DEV_SHELL_INITIALIZED to prevent duplicate initialization.
     Idempotent - safe to call multiple times in the same session.
 .PARAMETER DevCmdArguments

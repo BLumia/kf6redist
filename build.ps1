@@ -25,7 +25,7 @@ Check-ExecutableExists -ExecutableName "python.exe"
 Build-CMakeProject `
     -RepoUrl "https://github.com/BLumia/libintl.git" `
     -Version "master" `
-    -ProjectName "libintl" `
+    -RepoName "libintl" `
     -InstallPrefix "kf6redist-install"
 
 Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules"
@@ -47,7 +47,7 @@ Build-KF6Module -KfVer $kfver -RepoName "kconfigwidgets" -CMakeArgs "-DBUILD_TES
 Build-CMakeProject `
     -RepoUrl "https://github.com/madler/zlib.git" `
     -Version "v1.3.1.2" `
-    -ProjectName "zlib" `
+    -RepoName "zlib" `
     -InstallPrefix "kf6redist-install"
 
 Build-KF6Module -KfVer $kfver -RepoName "karchive" `
@@ -59,7 +59,7 @@ Build-KF6Module -KfVer $kfver -RepoName "kwindowsystem" -CMakeArgs "-DBUILD_TEST
 Build-CMakeProject `
     -RepoUrl "https://invent.kde.org/plasma/breeze.git" `
     -Version $plasmaver `
-    -ProjectName "breeze" `
+    -RepoName "breeze" `
     -InstallPrefix "kf6redist-install" `
     -PatchFiles "./patches/breeze-option-no-quick-n-cursor.diff" `
     -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_QT5=OFF", "-DWITH_DECORATIONS=OFF", "-DBUILD_WITH_QTQUICK=OFF", "-DBUILD_CURSOR=OFF"
