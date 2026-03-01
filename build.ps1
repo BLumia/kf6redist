@@ -1,22 +1,27 @@
+param(
+    [string]$kfver = "v6.23.0"
+)
+
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 . "$PSScriptRoot\buildutils.ps1"
 
 #region Configuration
-$kfver = "v6.23.0"
 $plasmaver = "v6.5.91"
 #endregion
 
 #region Initialize build Env and VSDev Shell
 . Initialize-BuildEnvironment
-Initialize-VSDevShell -DevCmdArguments "-arch=x64 -host_arch=x64"
+if ($IsWindows) {
+    Initialize-VSDevShell -DevCmdArguments "-arch=x64 -host_arch=x64"
+}
 #endregion
 
 #region Check pre-requirements
 # For ki18n
-Check-ExecutableExists -ExecutableName "xgettext.exe"
-Check-ExecutableExists -ExecutableName "python.exe"
+Check-ExecutableExists -ExecutableName "xgettext"
+Check-ExecutableExists -ExecutableName "python"
 #endregion
 
 #region Build

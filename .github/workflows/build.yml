@@ -1,0 +1,80 @@
+name: Cross-Platform CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      qt_ver:
+        description: 'Qt Version to use'
+        required: false
+        default: '6.10.2'
+      kf_ver:
+        description: 'KF Version to use'
+        required: true
+        default: 'v6.23.0'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-26]
+        include:
+          - os: windows-2022
+            qt_arch: win64_msvc2022_64
+            os_label: win
+            msvc_arch: x64
+            vs_ver: 2022
+          - os: macos-26
+            qt_arch: clang_64
+            os_label: mac
+            msvc_arch: arm64 # only for upload-artifact's name
+            vs_ver: 0
+
+    env:
+      QT_VER: ${{ inputs.qt_ver || '6.10.2' }}
+      KF_VER: ${{ inputs.kf_ver || 'v6.23.0' }}
+      AQT_ARCH: ${{ matrix.qt_arch }}
+      MSVC_ARCH: ${{ matrix.msvc_arch }}
+      VS_VER: ${{ matrix.vs_ver }}
+
+    steps:
+    - uses: actions/checkout@v6
+    
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        arch: ${{ env.AQT_ARCH }}
+        version: ${{ env.QT_VER }}
+        cache: true
+
+    - name: Install Gettext (Windows)
+      if: runner.os == 'Windows'
+      uses: MinoruSekine/setup-scoop@v4.0.2
+      with:
+        buckets: extras
+        apps: gettext
+
+    - name: Install Gettext (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install gettext
+
+    - name: Enable long paths for Windows
+      if: runner.os == 'Windows'
+      run: |
+        New-ItemProperty -Path "HKLM:System\CurrentControlSet\Control\FileSystem" `
+          -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
+
+    - name: Build
+      run: ./build.ps1 -kfver ${{ env.KF_VER }}
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: "${{ matrix.os_label }}-${{ env.MSVC_ARCH }}-vs${{ env.VS_VER }}-qt${{ env.QT_VER }}-kf${{ env.KF_VER }}"
+        path: kf6redist-install/*
