@@ -86,7 +86,7 @@ You'll likely need `Breeze` style for Qt widgets to make the application look ni
 
 Beside regular KF DLLs, be sure you don't forget the following ones:
 
-- `data/locale/<localeCode>/LC_MESSAGES/*.{mo,qm}` for localization
+- `data/locale/<localeCode>/LC_MESSAGES/*.{mo,qm}` and `data/locale/<localeCode>/kf6_entry.desktop` for localization
 - `iconengines/KIconEnginePlugin.dll` to ensure icon color follows your application theme
 - `styles/breeze6.dll` provides `Breeze` style
 
@@ -94,10 +94,11 @@ Beside regular KF DLLs, be sure you don't forget the following ones:
 
 Make sure you include the following files *before* bundle your application with `macdeployqt`.
 
+- `your.app/Contents/Resources/locale/<localeCode>/LC_MESSAHES/*.{mo,qm}` and `your.app/Contents/Resources/locale/<localeCode>/kf6_entry.desktop` for localization
 - `your.app/Contents/PlugIns/iconengines/KIconEnginePlugin.so` to ensure icon color follows your application theme
 - `your.app/Contents/PlugIns/styles/` provides `Breeze` style
 
 > [!NOTE]
-> I haven't be able to figure out how to make translations work for macOS, PR is welcome.
+> Loading translations on macOS is still sort of problematic, please see https://invent.kde.org/frameworks/ki18n/-/merge_requests/164 for related discussions.
 
 After that, use `macdeployqt` to deploy and sign your app (e.g. `macdeployqt ./path/to/your.app -codesign="-"` for local development).

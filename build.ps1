@@ -33,7 +33,8 @@ Build-CMakeProject `
     -RepoName "libintl" `
     -InstallPrefix "kf6redist-install"
 
-Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules"
+Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules" `
+    -PatchFiles "./patches/extra-cmake-modules-macos-locate-translations.diff"
 # Requires python3 with lxml if WITH_ICON_GENERATION is enabled
 Build-KF6Module -KfVer $kfver -RepoName "breeze-icons" `
     -PatchFiles "./patches/breeze-icons-std-filesystem-to-generate-symlink.diff" `
@@ -43,7 +44,9 @@ Build-KF6Module -KfVer $kfver -RepoName "kitemviews" -CMakeArgs "-DBUILD_TESTING
 Build-KF6Module -KfVer $kfver -RepoName "kconfig" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcodecs" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kguiaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
-Build-KF6Module -KfVer $kfver -RepoName "ki18n" -CMakeArgs "-DBUILD_TESTING=OFF"
+Build-KF6Module -KfVer $kfver -RepoName "ki18n" `
+    -PatchFiles "./patches/ki18n-macos-locate-translations.diff" `
+    -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kwidgetsaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcolorscheme" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfigwidgets" -CMakeArgs "-DBUILD_TESTING=OFF"

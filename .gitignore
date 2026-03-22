@@ -2,11 +2,17 @@
 v*-*/
 master-*/
 
+# Why? macOS, why?
+.DS_Store
+
 # build folders
 build/
 
 # binary folders
-kf6redis-*/
+kf6redist-*/
+
+# IDE/Editor folders
+.vscode/
 
 # local script
 env.local.ps1

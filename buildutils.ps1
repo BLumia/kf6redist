@@ -176,6 +176,8 @@ function Invoke-ExternalCommand {
     Avoid/skip install
 .PARAMETER NoSourceIdentifierFolder
     Avoid creating a subfolder as the source identifier (e.g., simply ""build/" instead of "build/v1.2.3-reponame/")
+.PARAMETER AvoidReconfig
+    Skip CMake configuration step if build directory already exists (useful for incremental builds)
 #>
 function Build-CMakeProject {
     [CmdletBinding(DefaultParameterSetName = "RemoteSource")]
@@ -205,7 +207,8 @@ function Build-CMakeProject {
         [string]$BuildType = "Release",
         [switch]$ForceRebuild,
         [switch]$SkipInstall,
-        [switch]$NoSourceIdentifierFolder
+        [switch]$NoSourceIdentifierFolder,
+        [switch]$AvoidReconfig
     )
 
     if ($env:GITHUB_ACTIONS -eq "true") {
@@ -339,12 +342,17 @@ function Build-CMakeProject {
         # Prepare build directory
         $null = New-Item -ItemType Directory -Path $buildDir -Force -ErrorAction Stop
 
-        # Configure with CMake
-        Write-Host "  → Configuring with CMake ..." -ForegroundColor Yellow
-        Invoke-ExternalCommand -ScriptBlock {
-            $sourcePath = if ($SourceSubdir) { Join-Path $sourceDir $SourceSubdir } else { $sourceDir }
-            cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs
-        } -Description "CMake configure"
+        # Configure with CMake (skip if AvoidReconfig and already configured)
+        $cmakeCacheFile = Join-Path $buildDir "CMakeCache.txt"
+        if ($AvoidReconfig -and (Test-Path -LiteralPath $cmakeCacheFile -PathType Leaf)) {
+            Write-Host "  → Skipping CMake configure (AvoidReconfig, existing configuration found)" -ForegroundColor Yellow
+        } else {
+            Write-Host "  → Configuring with CMake ..." -ForegroundColor Yellow
+            Invoke-ExternalCommand -ScriptBlock {
+                $sourcePath = if ($SourceSubdir) { Join-Path $sourceDir $SourceSubdir } else { $sourceDir }
+                cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs
+            } -Description "CMake configure"
+        }
 
         # Build
         Write-Host "  → Building ..." -ForegroundColor Yellow
@@ -411,6 +419,9 @@ Type: $($BuildType)
     KDE Frameworks module name (e.g., "extra-cmake-modules", "kcoreaddons")
 .PARAMETER KfVer
     KDE Frameworks version tag (e.g., "v6.22.0")
+.PARAMETER SkipCloneIfExist
+    (RemoteSource mode only) Skip cloning if source directory already exists.
+    When skipped, patching is also skipped (assumes patches were applied previously).
 .PARAMETER CMakeArgs
     Additional CMake arguments
 .PARAMETER InstallPrefix
@@ -426,6 +437,7 @@ function Build-KF6Module {
         [Parameter(Mandatory)]
         [string]$KfVer,
         [string[]]$PatchFiles = @(),
+        [switch]$SkipCloneIfExist,
         [string[]]$CMakeArgs = @(),
         [string]$InstallPrefix = "kf6redist-install",
         [switch]$ForceRebuild
@@ -437,6 +449,7 @@ function Build-KF6Module {
         -Version $KfVer `
         -RepoName $RepoName `
         -PatchFiles $PatchFiles `
+        -SkipCloneIfExist:$SkipCloneIfExist `
         -CMakeArgs $CMakeArgs `
         -InstallPrefix $InstallPrefix `
         -ForceRebuild:$ForceRebuild
