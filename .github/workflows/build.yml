@@ -1,4 +1,5 @@
 name: Cross-Platform CI
+run-name: KDE Framework - Qt ${{ inputs.qt_ver || 'default' }} - KF ${{ inputs.kf_ver || 'default' }}
 
 on:
   push:
@@ -8,11 +9,11 @@ on:
       qt_ver:
         description: 'Qt Version to use'
         required: false
-        default: '6.10.2'
+        default: '6.10.3'
       kf_ver:
         description: 'KF Version to use'
         required: true
-        default: 'v6.24.0'
+        default: 'v6.25.0'
 
 jobs:
   build:
@@ -37,8 +38,8 @@ jobs:
             vs_ver: 0
 
     env:
-      QT_VER: ${{ inputs.qt_ver || '6.10.2' }}
-      KF_VER: ${{ inputs.kf_ver || 'v6.24.0' }}
+      QT_VER: ${{ inputs.qt_ver || '6.10.3' }}
+      KF_VER: ${{ inputs.kf_ver || 'v6.25.0' }}
       AQT_ARCH: ${{ matrix.qt_arch }}
       MSVC_ARCH: ${{ matrix.msvc_arch }}
       VS_VER: ${{ matrix.vs_ver }}
@@ -74,7 +75,7 @@ jobs:
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: "${{ matrix.os_label }}-${{ env.MSVC_ARCH }}-vs${{ env.VS_VER }}-qt${{ env.QT_VER }}-kf${{ env.KF_VER }}"
         path: kf6redist-install/*
