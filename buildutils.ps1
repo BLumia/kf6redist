@@ -357,7 +357,7 @@ function Build-CMakeProject {
         # Build
         Write-Host "  → Building ..." -ForegroundColor Yellow
         Invoke-ExternalCommand -ScriptBlock {
-            cmake --build "$buildDir" --config "$BuildType"
+            cmake --build "$buildDir" --config "$BuildType" -j
         } -Description "Build"
 
         # Install
