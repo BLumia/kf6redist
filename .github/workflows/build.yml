@@ -59,7 +59,12 @@ jobs:
       uses: MinoruSekine/setup-scoop@v4.0.2
       with:
         buckets: extras
-        apps: gettext
+        apps: gettext ninja
+
+    - name: CMake prefer Ninja (address weird syntax-highlighting linking failure)
+      if: runner.os == 'Windows'
+      run: |
+        Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR=Ninja"
 
     - name: Install Gettext (macOS)
       if: runner.os == 'macOS'

@@ -23,9 +23,10 @@ These are required mainly by `ki18n`.
   - Windows: can install from [Scoop](https://scoop.sh/) via: `scoop install gettext`
   - macOS: can install from Homebrew via: `brew install gettext`
 
-This is optional but suggested. It's available in GitHub Actions Windows environment.
+These are optional but suggested. It's available in GitHub Actions Windows environment.
 
 - openssl (needed by `karchive`, can be disable by adding `-DWITH_OPENSSL=OFF` to `karchive`'s `CMakeArgs` list)
+- perl (needed by `syntax-highlighting`)
 
 And these two dependencies will be automatically downloaded and built by the script so you don't need to worry about them:
 
