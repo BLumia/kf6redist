@@ -54,12 +54,12 @@ jobs:
         version: ${{ env.QT_VER }}
         cache: true
 
-    - name: Install Gettext (Windows)
+    - name: Install Dependencies (Windows)
       if: runner.os == 'Windows'
       uses: MinoruSekine/setup-scoop@v4.0.2
       with:
         buckets: extras
-        apps: gettext
+        apps: gettext, ninja
 
     - name: Install Gettext (macOS)
       if: runner.os == 'macOS'
@@ -75,9 +75,12 @@ jobs:
     - name: Fix Environment for Windows CMake
       if: runner.os == 'Windows'
       run: |
-        $newPath = ($env:PATH -split ';').Where({ $_ -notmatch 'Git\\bin' -and $_ -notmatch 'Git\\usr\\bin' -and $_ -notmatch 'Strawberry' }) -join ';'
-        echo "PATH=$newPath" >> $env:GITHUB_ENV
-        echo "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
+        $pathElements = $env:PATH -split ';'
+        $newPath = $pathElements.Where({
+          -not (Test-Path (Join-Path $_ "sh.exe") -ErrorAction SilentlyContinue)
+        }) -join ';'
+        Add-Content -Path $env:GITHUB_ENV -Value "PATH=$newPath"
+        Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR=Ninja"
 
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
