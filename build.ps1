@@ -39,7 +39,7 @@ Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules" `
 Build-KF6Module -KfVer $kfver -RepoName "breeze-icons" `
     -PatchFiles "./patches/breeze-icons-std-filesystem-to-generate-symlink.diff" `
     -CMakeArgs "-DBUILD_TESTING=OFF", "-DSKIP_INSTALL_ICONS=ON", "-DWITH_ICON_GENERATION=OFF"
-if (Test-CMakeModuleExists -ModuleName "Perl") {
+if (Test-CMakePackageExists -PackageName "Perl") {
     Build-KF6Module -KfVer $kfver -RepoName "syntax-highlighting" -CMakeArgs "-DBUILD_TESTING=OFF"
 } else {
     Write-Host "[SKIP] Perl not found, skipping syntax-highlighting build" -ForegroundColor Yellow

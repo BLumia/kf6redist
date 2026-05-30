@@ -32,15 +32,31 @@ function Check-ExecutableExists {
     }
 }
 
-function Test-CMakeModuleExists {
-    [CmdletBinding()]
-    Param(
-        [Parameter(Mandatory = $True, Position = 0)]
-        [string]$ModuleName
+function Test-CMakePackageExists {
+    param(
+        [Parameter(Mandatory)]
+        [string]$PackageName
     )
 
-    $output = cmake --find-package -DNAME=$ModuleName -DCOMPILER_ID=GNU -DLANGUAGE=C -DMODE=EXIST 2>&1
-    return $LASTEXITCODE -eq 0
+    $tempDir = New-Item -ItemType Directory -Force `
+        -Path ([System.IO.Path]::GetTempPath()) `
+        -Name ("cmake-test-" + [guid]::NewGuid())
+
+    try {
+        @"
+cmake_minimum_required(VERSION 3.10)
+project(Test LANGUAGES CXX)
+
+find_package($PackageName REQUIRED)
+"@ | Set-Content "$($tempDir.FullName)/CMakeLists.txt"
+
+        & cmake -S $tempDir.FullName -B "$($tempDir.FullName)/build" *> $null
+
+        return $LASTEXITCODE -eq 0
+    }
+    finally {
+        Remove-Item $tempDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 <#
