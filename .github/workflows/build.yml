@@ -59,7 +59,7 @@ jobs:
       uses: MinoruSekine/setup-scoop@v4.0.2
       with:
         buckets: extras
-        apps: gettext, ninja
+        apps: gettext ninja
 
     - name: Install Gettext (macOS)
       if: runner.os == 'macOS'
