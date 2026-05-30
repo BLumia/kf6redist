@@ -13,7 +13,7 @@ on:
       kf_ver:
         description: 'KF Version to use'
         required: true
-        default: 'v6.25.0'
+        default: 'v6.26.0'
 
 jobs:
   build:
@@ -39,7 +39,7 @@ jobs:
 
     env:
       QT_VER: ${{ inputs.qt_ver || '6.10.3' }}
-      KF_VER: ${{ inputs.kf_ver || 'v6.25.0' }}
+      KF_VER: ${{ inputs.kf_ver || 'v6.26.0' }}
       AQT_ARCH: ${{ matrix.qt_arch }}
       MSVC_ARCH: ${{ matrix.msvc_arch }}
       VS_VER: ${{ matrix.vs_ver }}

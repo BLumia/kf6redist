@@ -1,5 +1,5 @@
 param(
-    [string]$kfver = "v6.25.0"
+    [string]$kfver = "v6.26.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,7 +8,7 @@ $ProgressPreference = "SilentlyContinue"
 . "$PSScriptRoot\buildutils.ps1"
 
 #region Configuration
-$plasmaver = "v6.5.91"
+$plasmaver = "v6.6.5"
 #endregion
 
 #region Initialize build Env and VSDev Shell
@@ -39,14 +39,17 @@ Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules" `
 Build-KF6Module -KfVer $kfver -RepoName "breeze-icons" `
     -PatchFiles "./patches/breeze-icons-std-filesystem-to-generate-symlink.diff" `
     -CMakeArgs "-DBUILD_TESTING=OFF", "-DSKIP_INSTALL_ICONS=ON", "-DWITH_ICON_GENERATION=OFF"
+if (Test-CMakeModuleExists -ModuleName "Perl") {
+    Build-KF6Module -KfVer $kfver -RepoName "syntax-highlighting" -CMakeArgs "-DBUILD_TESTING=OFF"
+} else {
+    Write-Host "[SKIP] Perl not found, skipping syntax-highlighting build" -ForegroundColor Yellow
+}
 Build-KF6Module -KfVer $kfver -RepoName "kcoreaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kitemviews" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfig" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcodecs" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kguiaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
-Build-KF6Module -KfVer $kfver -RepoName "ki18n" `
-    -PatchFiles "./patches/ki18n-macos-locate-translations.diff" `
-    -CMakeArgs "-DBUILD_TESTING=OFF"
+Build-KF6Module -KfVer $kfver -RepoName "ki18n" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kwidgetsaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcolorscheme" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfigwidgets" -CMakeArgs "-DBUILD_TESTING=OFF"

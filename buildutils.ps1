@@ -32,6 +32,17 @@ function Check-ExecutableExists {
     }
 }
 
+function Test-CMakeModuleExists {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True, Position = 0)]
+        [string]$ModuleName
+    )
+
+    $output = cmake --find-package -DNAME=$ModuleName -DCOMPILER_ID=GNU -DLANGUAGE=C -DMODE=EXIST 2>&1
+    return $LASTEXITCODE -eq 0
+}
+
 <#
 .SYNOPSIS
     Initialize build environment by loading environment configuration scripts.
