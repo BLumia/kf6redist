@@ -44,7 +44,7 @@ function Test-CMakePackageExists {
 
     try {
         @"
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.10)
 project(Test LANGUAGES CXX)
 
 find_package($PackageName REQUIRED)
@@ -550,37 +550,4 @@ function Initialize-VSDevShell {
     # Mark as initialized
     $env:VS_DEV_SHELL_INITIALIZED = $vsPath
     Write-Host "Visual Studio Developer Shell initialized successfully" -ForegroundColor Green
-}
-
-<#
-.SYNOPSIS
-    Remove directories containing sh.exe from PATH on Windows.
-.DESCRIPTION
-    CMake's custom commands (used in syntax-highlighting) can fail if sh.exe is in PATH
-    when using the MSVC generator. This function removes such directories.
-#>
-function Remove-ConflictingUnixShells {
-    if ($IsWindows) {
-        Write-Host "Checking for conflicting Unix shells (sh.exe) in PATH..." -ForegroundColor Cyan
-
-        $pathElements = $env:PATH -split [System.IO.Path]::PathSeparator
-        $newPathElements = New-Object System.Collections.Generic.List[string]
-        $removedCount = 0
-
-        foreach ($element in $pathElements) {
-            if (Test-Path (Join-Path $element "sh.exe")) {
-                Write-Host "  → Removing conflicting shell path: $element" -ForegroundColor Yellow
-                $removedCount++
-                continue
-            }
-            $newPathElements.Add($element)
-        }
-
-        if ($removedCount -gt 0) {
-            $env:PATH = $newPathElements -join [System.IO.Path]::PathSeparator
-            Write-Host "Removed $removedCount conflicting paths from PATH." -ForegroundColor Green
-        } else {
-            Write-Host "No conflicting shells found." -ForegroundColor Green
-        }
-    }
 }

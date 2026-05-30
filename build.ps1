@@ -15,7 +15,6 @@ $plasmaver = "v6.6.5"
 . Initialize-BuildEnvironment
 if ($IsWindows) {
     Initialize-VSDevShell -DevCmdArguments "-arch=x64 -host_arch=x64"
-    Remove-ConflictingUnixShells
 }
 #endregion
 
