@@ -72,11 +72,12 @@ jobs:
         New-ItemProperty -Path "HKLM:System\CurrentControlSet\Control\FileSystem" `
           -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
 
-    - name: Fix PATH for Windows CMake
+    - name: Fix Environment for Windows CMake
       if: runner.os == 'Windows'
       run: |
-        $newPath = ($env:PATH -split ';').Where({ $_ -notmatch 'Git\\bin' }) -join ';'
+        $newPath = ($env:PATH -split ';').Where({ $_ -notmatch 'Git\\bin' -and $_ -notmatch 'Git\\usr\\bin' -and $_ -notmatch 'Strawberry' }) -join ';'
         echo "PATH=$newPath" >> $env:GITHUB_ENV
+        echo "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
 
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
