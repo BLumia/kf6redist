@@ -76,23 +76,21 @@ jobs:
         New-ItemProperty -Path "HKLM:System\CurrentControlSet\Control\FileSystem" `
           -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
 
-    - name: Build
+    - name: Prepare relocatable RPATH toolchain (macOS)
+      if: runner.os == 'macOS'
       run: |
-        if ($IsMacOS) {
-          function global:cmake {
-            $args_list = @($args)
-            if ($args_list -contains "-S") {
-              Write-Host "Injected relocatable RPATH flags for macOS build" -ForegroundColor Cyan
-              $args_list += "-DCMAKE_INSTALL_RPATH=@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
-              $args_list += "-DCMAKE_MACOSX_RPATH=ON"
-              $args_list += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
-              $args_list += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
-              $args_list += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
-            }
-            & (Get-Command cmake -CommandType Application) @args_list
-          }
-        }
-        ./build.ps1 -kfver ${{ env.KF_VER }}
+        $content = @"
+        set(CMAKE_MACOSX_RPATH ON)
+        set(CMAKE_INSTALL_NAME_DIR "@rpath")
+        set(CMAKE_INSTALL_RPATH "@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib")
+        set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
+        set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+        "@
+        $content | Set-Content -Path macos.cmake
+        Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_TOOLCHAIN_FILE=$PWD/macos.cmake"
+
+    - name: Build
+      run: ./build.ps1 -kfver ${{ env.KF_VER }}
 
     - name: Verify RPath (macOS)
       if: runner.os == 'macOS'
@@ -109,12 +107,16 @@ jobs:
             $otoolId = (otool -D $file.FullName | Select-Object -Skip 1)
             $badLines = ($otoolLoad | Where-Object { $_ -match $absPathPattern }) + ($otoolId | Where-Object { $_ -match $absPathPattern })
             if ($badLines) {
-              Write-Error "Absolute path found in binary metadata: $($file.FullName)"
+              Write-Host "Absolute path found in binary metadata: $($file.FullName)" -ForegroundColor Red
               Write-Host "Offending lines:" -ForegroundColor Red
               $badLines | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
-              exit 1
+              $failBuild = $true
             }
           }
+        }
+        if ($failBuild) {
+          Write-Error "RPath verification failed!"
+          exit 1
         }
         Write-Host "RPath verification passed!" -ForegroundColor Green
 
