@@ -82,10 +82,12 @@ jobs:
           function global:cmake {
             $args_list = @($args)
             if ($args_list -contains "-S") {
+              Write-Host "Injected relocatable RPATH flags for macOS build" -ForegroundColor Cyan
               $args_list += "-DCMAKE_INSTALL_RPATH=@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
               $args_list += "-DCMAKE_MACOSX_RPATH=ON"
               $args_list += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
               $args_list += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+              $args_list += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
             }
             & (Get-Command cmake -CommandType Application) @args_list
           }
@@ -105,12 +107,11 @@ jobs:
             # Skip the first line of otool output because it always contains the filename (absolute path)
             $otoolLoad = (otool -l $file.FullName | Select-Object -Skip 1)
             $otoolId = (otool -D $file.FullName | Select-Object -Skip 1)
-            if ($otoolLoad -match $absPathPattern -or $otoolId -match $absPathPattern) {
+            $badLines = ($otoolLoad | Where-Object { $_ -match $absPathPattern }) + ($otoolId | Where-Object { $_ -match $absPathPattern })
+            if ($badLines) {
               Write-Error "Absolute path found in binary metadata: $($file.FullName)"
-              Write-Host "otool -l output:"
-              Write-Host $otoolLoad
-              Write-Host "otool -D output:"
-              Write-Host $otoolId
+              Write-Host "Offending lines:" -ForegroundColor Red
+              $badLines | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
               exit 1
             }
           }
