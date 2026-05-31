@@ -76,18 +76,24 @@ jobs:
         New-ItemProperty -Path "HKLM:System\CurrentControlSet\Control\FileSystem" `
           -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
 
-    - name: Prepare relocatable RPATH toolchain (macOS)
+    - name: Prepare relocatable RPATH injection (macOS)
       if: runner.os == 'macOS'
       run: |
-        $content = @"
-        set(CMAKE_MACOSX_RPATH ON)
-        set(CMAKE_INSTALL_NAME_DIR "@rpath")
-        set(CMAKE_INSTALL_RPATH "@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib")
-        set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
-        set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
-        "@
-        $content | Set-Content -Path macos.cmake
-        Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_TOOLCHAIN_FILE=$PWD/macos.cmake"
+        $content = @'
+        function global:cmake {
+            $args_list = @($args)
+            if ($args_list -contains "-S") {
+                Write-Host "Injected relocatable RPATH flags for macOS build" -ForegroundColor Cyan
+                $args_list += "-DCMAKE_INSTALL_RPATH=@loader_path;@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
+                $args_list += "-DCMAKE_MACOSX_RPATH=ON"
+                $args_list += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
+                $args_list += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+                $args_list += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
+            }
+            & (Get-Command cmake -CommandType Application) @args_list
+        }
+        '@
+        $content | Set-Content -Path env.local.ps1
 
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
