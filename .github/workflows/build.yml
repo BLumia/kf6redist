@@ -62,14 +62,13 @@ jobs:
         apps: gettext ninja
 
     - name: CMake prefer Ninja (address weird syntax-highlighting linking failure)
-      if: runner.os == 'Windows'
       run: |
         Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR=Ninja"
 
     - name: Install Gettext (macOS)
       if: runner.os == 'macOS'
       run: |
-        brew install gettext
+        brew install gettext ninja
 
     - name: Enable long paths for Windows
       if: runner.os == 'Windows'
@@ -78,7 +77,45 @@ jobs:
           -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
 
     - name: Build
-      run: ./build.ps1 -kfver ${{ env.KF_VER }}
+      run: |
+        if ($IsMacOS) {
+          function global:cmake {
+            $args_list = @($args)
+            if ($args_list -contains "-S") {
+              $args_list += "-DCMAKE_INSTALL_RPATH=@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
+              $args_list += "-DCMAKE_MACOSX_RPATH=ON"
+              $args_list += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
+              $args_list += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+            }
+            & (Get-Command cmake -CommandType Application) @args_list
+          }
+        }
+        ./build.ps1 -kfver ${{ env.KF_VER }}
+
+    - name: Verify RPath (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        $absPathPattern = "/Users/runner/work"
+        $installDir = "kf6redist-install"
+        $binaries = Get-ChildItem -Path $installDir -Recurse | Where-Object { ! $_.PSIsContainer }
+        foreach ($file in $binaries) {
+          $fileType = (file $file.FullName)
+          if ($fileType -match "Mach-O") {
+            Write-Host "Checking RPath for: $($file.FullName)"
+            # Skip the first line of otool output because it always contains the filename (absolute path)
+            $otoolLoad = (otool -l $file.FullName | Select-Object -Skip 1)
+            $otoolId = (otool -D $file.FullName | Select-Object -Skip 1)
+            if ($otoolLoad -match $absPathPattern -or $otoolId -match $absPathPattern) {
+              Write-Error "Absolute path found in binary metadata: $($file.FullName)"
+              Write-Host "otool -l output:"
+              Write-Host $otoolLoad
+              Write-Host "otool -D output:"
+              Write-Host $otoolId
+              exit 1
+            }
+          }
+        }
+        Write-Host "RPath verification passed!" -ForegroundColor Green
 
     - uses: actions/upload-artifact@v7
       with:
