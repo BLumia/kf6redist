@@ -76,27 +76,80 @@ jobs:
         New-ItemProperty -Path "HKLM:System\CurrentControlSet\Control\FileSystem" `
           -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
 
-    - name: Prepare relocatable RPATH injection (macOS)
+    - name: Prepare relocatable RPATH toolchain (macOS)
       if: runner.os == 'macOS'
       run: |
-        $content = @'
-        function global:cmake {
-            $args_list = @($args)
-            if ($args_list -contains "-S") {
-                Write-Host "Injected relocatable RPATH flags for macOS build" -ForegroundColor Cyan
-                $args_list += "-DCMAKE_INSTALL_RPATH=@loader_path;@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
-                $args_list += "-DCMAKE_MACOSX_RPATH=ON"
-                $args_list += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
-                $args_list += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
-                $args_list += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
-            }
-            & (Get-Command cmake -CommandType Application) @args_list
-        }
-        '@
-        $content | Set-Content -Path env.local.ps1
+        $content = @"
+        set(CMAKE_MACOSX_RPATH ON CACHE BOOL "" FORCE)
+        set(CMAKE_INSTALL_NAME_DIR "@rpath" CACHE STRING "" FORCE)
+        set(CMAKE_INSTALL_RPATH "@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib" CACHE STRING "" FORCE)
+        set(CMAKE_BUILD_WITH_INSTALL_RPATH ON CACHE BOOL "" FORCE)
+        set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF CACHE BOOL "" FORCE)
+        "@
+        $content | Set-Content -Path macos.cmake
+        Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_TOOLCHAIN_FILE=$PWD/macos.cmake"
 
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
+
+    - name: Fix RPath (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        $absPathPattern = "/Users/runner/work"
+        $installDir = "$PWD/kf6redist-install"
+        $binaries = Get-ChildItem -Path $installDir -Recurse | Where-Object { ! $_.PSIsContainer }
+        foreach ($file in $binaries) {
+          $fileType = (file $file.FullName)
+          if ($fileType -match "Mach-O") {
+            Write-Host "Fixing RPath for: $($file.FullName)"
+
+            # Fix ID
+            $id = (otool -D $file.FullName | Select-Object -Skip 1)
+            if ($id -match $absPathPattern) {
+              $newName = $id -replace "^.*/kf6redist-install/", "@rpath/"
+              Write-Host "  Changing ID from $id to $newName"
+              install_name_tool -id $newName $file.FullName
+            }
+
+            # Fix Dependencies
+            $libraries = otool -L $file.FullName | Select-Object -Skip 1
+            foreach ($libLine in $libraries) {
+              if ($libLine -match "\s*(.*)\s\(compatibility.*$") {
+                $libPath = $Matches[1].Trim()
+                if ($libPath -match $absPathPattern) {
+                  $newLibPath = $libPath -replace "^.*/kf6redist-install/", "@rpath/"
+                  # Also handle Qt absolute paths if any, though they might be needed.
+                  # For now, focus on our own redistribution.
+                  if ($newLibPath -ne $libPath) {
+                    Write-Host "  Changing dependency from $libPath to $newLibPath"
+                    install_name_tool -change $libPath $newLibPath $file.FullName
+                  }
+                }
+              }
+            }
+
+            # Fix RPaths
+            $loadCommands = otool -l $file.FullName
+            $isRpathBlock = $false
+            foreach ($line in $loadCommands) {
+              if ($line -match "cmd LC_RPATH") { $isRpathBlock = $true }
+              elseif ($line -match "cmd ") { $isRpathBlock = $false }
+
+              if ($isRpathBlock -and $line -match "\s*path\s+(.*)\s\(offset.*$") {
+                $rpath = $Matches[1].Trim()
+                if ($rpath -match $absPathPattern) {
+                  Write-Host "  Removing absolute RPath: $rpath"
+                  install_name_tool -delete_rpath $rpath $file.FullName
+                }
+              }
+            }
+
+            # Ensure relative RPaths exist
+            install_name_tool -add_rpath "@loader_path/../lib" $file.FullName 2>$null
+            install_name_tool -add_rpath "@loader_path/../../lib" $file.FullName 2>$null
+            install_name_tool -add_rpath "@loader_path/../../../lib" $file.FullName 2>$null
+          }
+        }
 
     - name: Verify RPath (macOS)
       if: runner.os == 'macOS'
