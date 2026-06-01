@@ -375,9 +375,13 @@ function Build-CMakeProject {
             Write-Host "  → Skipping CMake configure (AvoidReconfig, existing configuration found)" -ForegroundColor Yellow
         } else {
             Write-Host "  → Configuring with CMake ..." -ForegroundColor Yellow
+            $platformCMakeArgs = @()
+            if ($IsMacOS) {
+                $platformCMakeArgs += "-DKDE_SKIP_RPATH_SETTINGS=TRUE"
+            }
             Invoke-ExternalCommand -ScriptBlock {
                 $sourcePath = if ($SourceSubdir) { Join-Path $sourceDir $SourceSubdir } else { $sourceDir }
-                cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs
+                cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs @platformCMakeArgs
             } -Description "CMake configure"
         }
 
