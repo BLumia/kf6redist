@@ -88,16 +88,19 @@ jobs:
         "@
         $toolchain | Set-Content -Path macos.cmake
 
-        $envLocal = @"
+        $envLocal = @'
         function global:cmake {
-            `$args_list = @(`$args)
-            if (`$args_list -contains "-S") {
+            $all_args = @($args)
+            if ($all_args -contains "-S") {
                 Write-Host "Injected relocatable RPATH toolchain for macOS build" -ForegroundColor Cyan
-                `$args_list += "-DCMAKE_TOOLCHAIN_FILE=$PWD/macos.cmake"
+                $all_args += "-DCMAKE_TOOLCHAIN_FILE=$PWD/macos.cmake"
             }
-            & (Get-Command cmake -CommandType Application) @`$args_list
+            & (Get-Command cmake -CommandType Application) @all_args
         }
-        "@
+        '@
+        # Since $PWD might need expanding but only for the toolchain path
+        $toolchainPath = "$PWD/macos.cmake"
+        $envLocal = $envLocal.Replace('$PWD/macos.cmake', $toolchainPath)
         $envLocal | Set-Content -Path env.local.ps1
 
     - name: Build
