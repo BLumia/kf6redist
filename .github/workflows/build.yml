@@ -78,6 +78,46 @@ jobs:
 
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
+      env:
+        DYLD_LIBRARY_PATH: ${{ runner.os == 'macOS' && format('{0}/lib:kf6redist-install/lib', env.QT_ROOT_DIR) || '' }}
+        DYLD_FRAMEWORK_PATH: ${{ runner.os == 'macOS' && format('{0}/lib', env.QT_ROOT_DIR) || '' }}
+
+    - name: Verify rpath (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -euo pipefail
+        errors=0
+        while IFS= read -r -d '' f; do
+          # Check LC_RPATH for absolute paths
+          rpaths=$(otool -l "$f" | awk '/cmd LC_RPATH/{getline; getline; print}' || true)
+          if echo "$rpaths" | grep -q 'path /'; then
+            echo "::error file=$f::Absolute path found in LC_RPATH"
+            echo "$rpaths" | grep 'path /' | sed 's/^/  /'
+            errors=$((errors + 1))
+          fi
+          # Check LC_ID_DYLIB for absolute paths (only for .dylib)
+          if [[ "$f" == *.dylib ]]; then
+            id=$(otool -D "$f" 2>/dev/null | tail -n +2 | head -1 || true)
+            if [[ "$id" == /* ]]; then
+              echo "::error file=$f::Absolute path found in LC_ID_DYLIB: $id"
+              errors=$((errors + 1))
+            fi
+          fi
+        done < <(find kf6redist-install/lib -type f \( -name "*.dylib" -o -name "*.so" \) -print0)
+        while IFS= read -r -d '' f; do
+          rpaths=$(otool -l "$f" | awk '/cmd LC_RPATH/{getline; getline; print}' || true)
+          if echo "$rpaths" | grep -q 'path /'; then
+            echo "::error file=$f::Absolute path found in LC_RPATH"
+            echo "$rpaths" | grep 'path /' | sed 's/^/  /'
+            errors=$((errors + 1))
+          fi
+        done < <(find kf6redist-install/bin kf6redist-install/lib/libexec -type f -perm +111 -print0 2>/dev/null)
+        if [ "$errors" -gt 0 ]; then
+          echo "::error::Found $errors file(s) with absolute path rpath/install name issues"
+          exit 1
+        fi
+        echo "rpath verification passed: no absolute paths found"
 
     - uses: actions/upload-artifact@v7
       with:

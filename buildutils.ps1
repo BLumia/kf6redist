@@ -162,6 +162,47 @@ function Invoke-ExternalCommand {
 
 <#
 .SYNOPSIS
+    Patch kf6redist tool rpaths for macOS
+.DESCRIPTION
+    kf6redist tools (e.g. kconfig_compiler_kf6) use relative @loader_path rpaths,
+    but they link against Qt frameworks which live in the local Qt installation.
+
+    This function adds the local Qt lib path to the rpath of each tool binary
+    using install_name_tool, so they can find Qt frameworks at runtime.
+
+    Skips binaries that already have the correct rpath (idempotent).
+.PARAMETER KF6InstallPrefix
+    Path to the kf6redist install prefix (default: from CMAKE_PREFIX_PATH env)
+.PARAMETER QtLibDir
+    Path to the Qt lib directory (default: from QT_DIR env)
+#>
+function Patch-KF6ToolsRpath {
+    [CmdletBinding()]
+    param(
+        [string]$KF6InstallPrefix = $env:CMAKE_PREFIX_PATH,
+        [string]$QtLibDir = "$(if ($env:QT_DIR) { "$env:QT_DIR/lib" })"
+    )
+
+    if (-not $IsMacOS) { return }
+    if (-not $KF6InstallPrefix -or -not $QtLibDir) {
+        Write-Host "  → Skipping rpath patch (CMAKE_PREFIX_PATH or QT_DIR not set)" -ForegroundColor Gray
+        return
+    }
+
+    $toolDir = Join-Path $KF6InstallPrefix "lib/libexec/kf6"
+    if (-not (Test-Path $toolDir)) { return }
+
+    Get-ChildItem -Path $toolDir -File | ForEach-Object {
+        $existing = & otool -l $_.FullName 2>&1 | Select-String "path $QtLibDir"
+        if (-not $existing) {
+            Write-Host "  → Patching rpath: $($_.Name)" -ForegroundColor Yellow
+            & install_name_tool -add_rpath $QtLibDir $_.FullName 2>&1 | Out-Null
+        }
+    }
+}
+
+<#
+.SYNOPSIS
     Build generic CMake project from Git repository or local source path
 .DESCRIPTION
     Supports two modes:
@@ -375,9 +416,18 @@ function Build-CMakeProject {
             Write-Host "  → Skipping CMake configure (AvoidReconfig, existing configuration found)" -ForegroundColor Yellow
         } else {
             Write-Host "  → Configuring with CMake ..." -ForegroundColor Yellow
+            $platformCMakeArgs = @()
+            if ($IsMacOS) {
+                $platformCMakeArgs += "-DKDE_SKIP_RPATH_SETTINGS=TRUE"
+                $platformCMakeArgs += "-DCMAKE_MACOSX_RPATH=ON"
+                $platformCMakeArgs += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
+                $platformCMakeArgs += "-DCMAKE_INSTALL_RPATH=@loader_path;@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
+                $platformCMakeArgs += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+                $platformCMakeArgs += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
+            }
             Invoke-ExternalCommand -ScriptBlock {
                 $sourcePath = if ($SourceSubdir) { Join-Path $sourceDir $SourceSubdir } else { $sourceDir }
-                cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs
+                cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs @platformCMakeArgs
             } -Description "CMake configure"
         }
 
