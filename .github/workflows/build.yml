@@ -79,21 +79,26 @@ jobs:
     - name: Prepare relocatable RPATH injection (macOS)
       if: runner.os == 'macOS'
       run: |
-        $content = @'
+        $toolchain = @"
+        set(CMAKE_MACOSX_RPATH ON CACHE BOOL "" FORCE)
+        set(CMAKE_INSTALL_NAME_DIR "@rpath" CACHE STRING "" FORCE)
+        set(CMAKE_INSTALL_RPATH "@loader_path/../lib;@loader_path;@loader_path/../../lib;@loader_path/../../../lib" CACHE STRING "" FORCE)
+        set(CMAKE_BUILD_WITH_INSTALL_RPATH ON CACHE BOOL "" FORCE)
+        set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF CACHE BOOL "" FORCE)
+        "@
+        $toolchain | Set-Content -Path macos.cmake
+
+        $envLocal = @"
         function global:cmake {
-            $args_list = @($args)
-            if ($args_list -contains "-S") {
-                Write-Host "Injected relocatable RPATH flags for macOS build" -ForegroundColor Cyan
-                $args_list += "-DCMAKE_INSTALL_RPATH=@loader_path/../lib;@loader_path;@loader_path/../../lib;@loader_path/../../../lib"
-                $args_list += "-DCMAKE_MACOSX_RPATH=ON"
-                $args_list += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
-                $args_list += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
-                $args_list += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
+            `$args_list = @(`$args)
+            if (`$args_list -contains "-S") {
+                Write-Host "Injected relocatable RPATH toolchain for macOS build" -ForegroundColor Cyan
+                `$args_list += "-DCMAKE_TOOLCHAIN_FILE=$PWD/macos.cmake"
             }
-            & (Get-Command cmake -CommandType Application) @args_list
+            & (Get-Command cmake -CommandType Application) @`$args_list
         }
-        '@
-        $content | Set-Content -Path env.local.ps1
+        "@
+        $envLocal | Set-Content -Path env.local.ps1
 
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
