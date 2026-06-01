@@ -54,22 +54,21 @@ jobs:
         version: ${{ env.QT_VER }}
         cache: true
 
-    - name: Install Gettext (Windows)
+    - name: Install Gettext and Ninja (Windows)
       if: runner.os == 'Windows'
       uses: MinoruSekine/setup-scoop@v4.0.2
       with:
         buckets: extras
         apps: gettext ninja
 
-    - name: CMake prefer Ninja (address weird syntax-highlighting linking failure)
-      if: runner.os == 'Windows'
-      run: |
-        Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR=Ninja"
-
-    - name: Install Gettext (macOS)
+    - name: Install Gettext and Ninja (macOS)
       if: runner.os == 'macOS'
       run: |
-        brew install gettext
+        brew install gettext ninja
+
+    - name: CMake prefer Ninja
+      run: |
+        Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR=Ninja"
 
     - name: Enable long paths for Windows
       if: runner.os == 'Windows'
