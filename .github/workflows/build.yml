@@ -76,32 +76,14 @@ jobs:
         New-ItemProperty -Path "HKLM:System\CurrentControlSet\Control\FileSystem" `
           -Name "LongPathsEnabled" -Value 1 -Type DWORD -Force
 
-    - name: Prepare relocatable RPATH injection (macOS)
+    - name: Patch build utils for relocatable RPath (macOS)
       if: runner.os == 'macOS'
       run: |
-        $toolchain = @"
-        set(CMAKE_MACOSX_RPATH ON CACHE BOOL "" FORCE)
-        set(CMAKE_INSTALL_NAME_DIR "@rpath" CACHE STRING "" FORCE)
-        set(CMAKE_INSTALL_RPATH "@loader_path/../lib;@loader_path;@loader_path/../../lib;@loader_path/../../../lib" CACHE STRING "" FORCE)
-        set(CMAKE_BUILD_WITH_INSTALL_RPATH ON CACHE BOOL "" FORCE)
-        set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF CACHE BOOL "" FORCE)
-        "@
-        $toolchain | Set-Content -Path macos.cmake
-
-        $envLocal = @'
-        function global:cmake {
-            $all_args = @($args)
-            if ($all_args -contains "-S") {
-                Write-Host "Injected relocatable RPATH toolchain for macOS build" -ForegroundColor Cyan
-                $all_args += "-DCMAKE_TOOLCHAIN_FILE=$PWD/macos.cmake"
-            }
-            & (Get-Command cmake -CommandType Application) @all_args
-        }
-        '@
-        # Since $PWD might need expanding but only for the toolchain path
-        $toolchainPath = "$PWD/macos.cmake"
-        $envLocal = $envLocal.Replace('$PWD/macos.cmake', $toolchainPath)
-        $envLocal | Set-Content -Path env.local.ps1
+        $path = "buildutils.ps1"
+        $flags = "-DCMAKE_MACOSX_RPATH=ON", "-DCMAKE_INSTALL_NAME_DIR=@rpath", "-DCMAKE_INSTALL_RPATH='@loader_path/../lib;@loader_path;@loader_path/../../lib;@loader_path/../../../lib'", "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON", "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
+        $content = Get-Content $path
+        $newContent = $content -replace 'cmake -S \$sourcePath -B \$buildDir -DCMAKE_INSTALL_PREFIX="\$InstallPrefix" -DCMAKE_BUILD_TYPE="\$BuildType" @CMakeArgs', "cmake -S `$sourcePath -B `$buildDir -DCMAKE_INSTALL_PREFIX=`"`$InstallPrefix`" -DCMAKE_BUILD_TYPE=`"`$BuildType`" $($flags -join ' ') @CMakeArgs"
+        $newContent | Set-Content $path
 
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
