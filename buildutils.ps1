@@ -378,6 +378,11 @@ function Build-CMakeProject {
             $platformCMakeArgs = @()
             if ($IsMacOS) {
                 $platformCMakeArgs += "-DKDE_SKIP_RPATH_SETTINGS=TRUE"
+                $platformCMakeArgs += "-DCMAKE_MACOSX_RPATH=ON"
+                $platformCMakeArgs += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
+                $platformCMakeArgs += "-DCMAKE_INSTALL_RPATH=@loader_path;@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
+                $platformCMakeArgs += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+                $platformCMakeArgs += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
             }
             Invoke-ExternalCommand -ScriptBlock {
                 $sourcePath = if ($SourceSubdir) { Join-Path $sourceDir $SourceSubdir } else { $sourceDir }

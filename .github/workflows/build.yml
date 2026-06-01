@@ -79,7 +79,8 @@ jobs:
     - name: Build
       run: ./build.ps1 -kfver ${{ env.KF_VER }}
       env:
-        DYLD_FALLBACK_LIBRARY_PATH: ${{ runner.os == 'macOS' && format('{0}/lib', env.QT_ROOT_DIR) || '' }}
+        DYLD_LIBRARY_PATH: ${{ runner.os == 'macOS' && format('{0}/lib:kf6redist-install/lib', env.QT_ROOT_DIR) || '' }}
+        DYLD_FRAMEWORK_PATH: ${{ runner.os == 'macOS' && format('{0}/lib', env.QT_ROOT_DIR) || '' }}
 
     - name: Verify rpath (macOS)
       if: runner.os == 'macOS'
