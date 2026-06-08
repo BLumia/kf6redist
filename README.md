@@ -100,6 +100,8 @@ Make sure you include the following files *before* bundle your application with 
 - `your.app/Contents/PlugIns/styles/` provides `Breeze` style
 
 > [!NOTE]
-> Loading translations on macOS is still sort of problematic, please see https://invent.kde.org/frameworks/ki18n/-/merge_requests/164 for related discussions.
+> Currently we rely on patches to ensure translations work on macOS. See `patches/` folder for patches used for `ki18n`.
+> Patches will be upstreamd to KDE in later updates. See [here](https://invent.kde.org/frameworks/ki18n/-/merge_requests/164) for historical discussion.
+> You will also need to ensure libintl respect `LANGUAGE` environment variable as well.
 
 After that, use `macdeployqt` to deploy and sign your app (e.g. `macdeployqt ./path/to/your.app -codesign="-"` for local development).
