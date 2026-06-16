@@ -55,7 +55,24 @@ find_package($PackageName REQUIRED)
         return $LASTEXITCODE -eq 0
     }
     finally {
-        Remove-Item $tempDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $tempDir.FullName) {
+            Remove-Item $tempDir.FullName -Recurse -Force
+        }
+    }
+}
+
+function Check-CMakePackageExists {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True, Position = 0)]
+        [string]$PackageName
+    )
+
+    if (-not (Test-CMakePackageExists $PackageName)) {
+        Write-Error "Required CMake package '$PackageName' not found"
+        exit 1
+    } else {
+        Write-Host "Found CMake package '$PackageName'" -ForegroundColor Green
     }
 }
 
@@ -417,14 +434,6 @@ function Build-CMakeProject {
         } else {
             Write-Host "  → Configuring with CMake ..." -ForegroundColor Yellow
             $platformCMakeArgs = @()
-            if ($IsMacOS) {
-                $platformCMakeArgs += "-DKDE_SKIP_RPATH_SETTINGS=TRUE"
-                $platformCMakeArgs += "-DCMAKE_MACOSX_RPATH=ON"
-                $platformCMakeArgs += "-DCMAKE_INSTALL_NAME_DIR=@rpath"
-                $platformCMakeArgs += "-DCMAKE_INSTALL_RPATH=@loader_path;@loader_path/../lib;@loader_path/../../lib;@loader_path/../../../lib"
-                $platformCMakeArgs += "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
-                $platformCMakeArgs += "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF"
-            }
             Invoke-ExternalCommand -ScriptBlock {
                 $sourcePath = if ($SourceSubdir) { Join-Path $sourceDir $SourceSubdir } else { $sourceDir }
                 cmake -S $sourcePath -B $buildDir -DCMAKE_INSTALL_PREFIX="$InstallPrefix" -DCMAKE_BUILD_TYPE="$BuildType" @CMakeArgs @platformCMakeArgs
@@ -600,4 +609,158 @@ function Initialize-VSDevShell {
     # Mark as initialized
     $env:VS_DEV_SHELL_INITIALIZED = $vsPath
     Write-Host "Visual Studio Developer Shell initialized successfully" -ForegroundColor Green
+}
+
+function Repair-MacOSInstallRpath {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$InstallPrefix
+    )
+
+    if (-not $IsMacOS) { return }
+
+    $libDir = Join-Path $InstallPrefix "lib"
+    if (-not (Test-Path $libDir)) {
+        Write-Host "  → No lib directory found, skipping RPATH fixup" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "  → Fixing macOS RPATH entries in $InstallPrefix ..." -ForegroundColor Yellow
+
+    $fixed = 0
+    $skipped = 0
+
+    Get-ChildItem -Path $InstallPrefix -Recurse -File | ForEach-Object {
+        $file = $_.FullName
+
+        # Skip non-Mach-O files (check for Mach-O magic bytes)
+        $header = [byte[]]::new(4)
+        try {
+            $stream = [System.IO.File]::OpenRead($file)
+            $null = $stream.Read($header, 0, 4)
+            $stream.Close()
+        } catch {
+            return
+        }
+
+        # Mach-O magic: FEEDFACE (32-bit), FEEDFACF (64-bit), BEBAFECA (fat)
+        $isMachO = ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and ($header[3] -eq 0xCE -or $header[3] -eq 0xCF)) -or
+                   ($header[0] -eq 0xBE -and $header[1] -eq 0xBA -and $header[2] -eq 0xFE -and $header[3] -eq 0xCA)
+        if (-not $isMachO) { return }
+
+        $relativePath = $file.Substring($libDir.Length + 1)
+        $dirParts = $relativePath.Split([IO.Path]::DirectorySeparatorChar)
+        $depth = [Math]::Max(0, $dirParts.Length - 1)
+        $rpathEntry = "@loader_path" + ("$([IO.Path]::DirectorySeparatorChar)..") * $depth + "$([IO.Path]::DirectorySeparatorChar)lib"
+        $rpathEntry = $rpathEntry.Replace("\", "/")
+
+        # Fix LC_ID_DYLIB for .dylib files
+        if ($file -match '\.dylib$') {
+            $idOutput = & otool -D $file 2>$null
+            if ($idOutput.Count -ge 2) {
+                $currentId = $idOutput[1].Trim()
+                if ($currentId -and $currentId.StartsWith("/")) {
+                    $newId = "@rpath/" + [IO.Path]::GetFileName($currentId)
+                    & install_name_tool -id $newId $file 2>$null
+                    $fixed++
+                }
+            }
+        }
+
+        # Get current RPATH entries
+        $otoolOutput = & otool -l $file 2>$null
+        $rpaths = @()
+        $inRpath = $false
+        foreach ($line in $otoolOutput) {
+            if ($line -match '^\s+cmd LC_RPATH') { $inRpath = $true; continue }
+            if ($inRpath -and $line -match '^\s+path\s+(.+?)\s+\(offset') {
+                $rpaths += $Matches[1].Trim()
+                $inRpath = $false
+            }
+            if ($inRpath -and $line -match '^\s+cmd\s') { $inRpath = $false }
+        }
+
+        # Remove all existing RPATH entries
+        foreach ($rp in $rpaths) {
+            & install_name_tool -delete_rpath $rp $file 2>$null
+        }
+
+        # Add correct relative RPATH
+        & install_name_tool -add_rpath $rpathEntry $file 2>$null
+        $fixed++
+    }
+
+    Write-Host "  → RPATH fixup complete: $fixed entries modified, $skipped skipped" -ForegroundColor Green
+}
+
+function Test-MacOSInstallRpath {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$InstallPrefix
+    )
+
+    if (-not $IsMacOS) { return }
+
+    $libDir = Join-Path $InstallPrefix "lib"
+    if (-not (Test-Path $libDir)) {
+        Write-Host "  → No lib directory found, skipping RPATH verification" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "  → Verifying macOS RPATH entries in $InstallPrefix ..." -ForegroundColor Yellow
+
+    $errors = 0
+
+    Get-ChildItem -Path $InstallPrefix -Recurse -File | ForEach-Object {
+        $file = $_.FullName
+
+        # Skip non-Mach-O files
+        $header = [byte[]]::new(4)
+        try {
+            $stream = [System.IO.File]::OpenRead($file)
+            $null = $stream.Read($header, 0, 4)
+            $stream.Close()
+        } catch {
+            return
+        }
+
+        $isMachO = ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and ($header[3] -eq 0xCE -or $header[3] -eq 0xCF)) -or
+                   ($header[0] -eq 0xBE -and $header[1] -eq 0xBA -and $header[2] -eq 0xFE -and $header[3] -eq 0xCA)
+        if (-not $isMachO) { return }
+
+        $displayName = $file.Substring($InstallPrefix.Length + 1)
+
+        # Check LC_RPATH for absolute paths
+        $otoolOutput = & otool -l $file 2>$null
+        $inRpath = $false
+        foreach ($line in $otoolOutput) {
+            if ($line -match '^\s+cmd LC_RPATH') { $inRpath = $true; continue }
+            if ($inRpath -and $line -match '^\s+path\s+(/\S+)') {
+                Write-Host "    [ERROR] $displayName : absolute LC_RPATH: $($Matches[1])" -ForegroundColor Red
+                $errors++
+                $inRpath = $false
+            }
+            if ($inRpath -and $line -match '^\s+cmd\s') { $inRpath = $false }
+        }
+
+        # Check LC_ID_DYLIB for absolute paths
+        if ($file -match '\.dylib$') {
+            $idOutput = & otool -D $file 2>$null
+            if ($idOutput.Count -ge 2) {
+                $currentId = $idOutput[1].Trim()
+                if ($currentId -and $currentId.StartsWith("/")) {
+                    Write-Host "    [ERROR] $displayName : absolute LC_ID_DYLIB: $currentId" -ForegroundColor Red
+                    $errors++
+                }
+            }
+        }
+    }
+
+    if ($errors -gt 0) {
+        throw "RPATH verification failed: $errors absolute path(s) found"
+    }
+
+    Write-Host "  → RPATH verification passed: no absolute paths found" -ForegroundColor Green
 }

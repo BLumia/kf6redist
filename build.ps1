@@ -1,5 +1,5 @@
 param(
-    [string]$kfver = "v6.26.0"
+    [string]$kfver = "v6.27.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,7 +21,7 @@ if ($IsWindows) {
 #region Check pre-requirements
 # For ki18n
 Check-ExecutableExists -ExecutableName "xgettext"
-Check-ExecutableExists -ExecutableName "python"
+Check-CMakePackageExists -PackageName "Python3"
 #endregion
 
 #region Build
@@ -33,8 +33,7 @@ Build-CMakeProject `
     -RepoName "libintl" `
     -InstallPrefix "kf6redist-install"
 
-Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules" `
-    -PatchFiles "./patches/extra-cmake-modules-macos-locate-translations.diff"
+Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules"
 # Requires python3 with lxml if WITH_ICON_GENERATION is enabled
 Build-KF6Module -KfVer $kfver -RepoName "breeze-icons" `
     -PatchFiles "./patches/breeze-icons-std-filesystem-to-generate-symlink.diff" `
@@ -75,4 +74,9 @@ Build-CMakeProject `
     -InstallPrefix "kf6redist-install" `
     -PatchFiles "./patches/breeze-option-no-quick-n-cursor.diff" `
     -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_QT5=OFF", "-DWITH_DECORATIONS=OFF", "-DBUILD_WITH_QTQUICK=OFF", "-DBUILD_CURSOR=OFF"
+#endregion
+
+#region Post-build fixup
+Repair-MacOSInstallRpath -InstallPrefix "kf6redist-install"
+Test-MacOSInstallRpath -InstallPrefix "kf6redist-install"
 #endregion
