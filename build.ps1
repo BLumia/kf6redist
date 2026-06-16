@@ -8,7 +8,7 @@ $ProgressPreference = "SilentlyContinue"
 . "$PSScriptRoot\buildutils.ps1"
 
 #region Configuration
-$plasmaver = "v6.6.5"
+$plasmaver = "v6.7.0"
 #endregion
 
 #region Initialize build Env and VSDev Shell
@@ -72,7 +72,6 @@ Build-CMakeProject `
     -Version $plasmaver `
     -RepoName "breeze" `
     -InstallPrefix "kf6redist-install" `
-    -PatchFiles "./patches/breeze-option-no-quick-n-cursor.diff" `
     -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_QT5=OFF", "-DWITH_DECORATIONS=OFF", "-DBUILD_WITH_QTQUICK=OFF", "-DBUILD_CURSOR=OFF"
 #endregion
 

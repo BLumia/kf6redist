@@ -620,6 +620,7 @@ function Repair-MacOSInstallRpath {
 
     if (-not $IsMacOS) { return }
 
+    $InstallPrefix = (Resolve-Path $InstallPrefix).Path
     $libDir = Join-Path $InstallPrefix "lib"
     if (-not (Test-Path $libDir)) {
         Write-Host "  → No lib directory found, skipping RPATH fixup" -ForegroundColor Yellow
@@ -628,13 +629,17 @@ function Repair-MacOSInstallRpath {
 
     Write-Host "  → Fixing macOS RPATH entries in $InstallPrefix ..." -ForegroundColor Yellow
 
+    if ($env:GITHUB_ACTIONS -eq "true") {
+        Write-Host "::group::Fixing macOS RPATH entries in $InstallPrefix"
+    }
+
     $fixed = 0
-    $skipped = 0
 
     Get-ChildItem -Path $InstallPrefix -Recurse -File | ForEach-Object {
         $file = $_.FullName
 
         # Skip non-Mach-O files (check for Mach-O magic bytes)
+        $relativePath = $file.Substring($InstallPrefix.Length + 1)
         $header = [byte[]]::new(4)
         try {
             $stream = [System.IO.File]::OpenRead($file)
@@ -644,16 +649,29 @@ function Repair-MacOSInstallRpath {
             return
         }
 
-        # Mach-O magic: FEEDFACE (32-bit), FEEDFACF (64-bit), BEBAFECA (fat)
-        $isMachO = ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and ($header[3] -eq 0xCE -or $header[3] -eq 0xCF)) -or
+        # Mach-O magic: FEEDFACF (64-bit LE), FEEDFACE (32-bit LE), CEFAEDFE (32-bit BE), CFFAEDFE (64-bit BE), BEBAFECA (fat)
+        $isMachO = ($header[0] -eq 0xCF -and $header[1] -eq 0xFA -and $header[2] -eq 0xED -and $header[3] -eq 0xFE) -or
+                   ($header[0] -eq 0xCE -and $header[1] -eq 0xFA -and $header[2] -eq 0xED -and $header[3] -eq 0xFE) -or
+                   ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and $header[3] -eq 0xCF) -or
+                   ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and $header[3] -eq 0xCE) -or
                    ($header[0] -eq 0xBE -and $header[1] -eq 0xBA -and $header[2] -eq 0xFE -and $header[3] -eq 0xCA)
         if (-not $isMachO) { return }
 
-        $relativePath = $file.Substring($libDir.Length + 1)
-        $dirParts = $relativePath.Split([IO.Path]::DirectorySeparatorChar)
-        $depth = [Math]::Max(0, $dirParts.Length - 1)
-        $rpathEntry = "@loader_path" + ("$([IO.Path]::DirectorySeparatorChar)..") * $depth + "$([IO.Path]::DirectorySeparatorChar)lib"
+        $parentDir = [IO.Path]::GetDirectoryName($relativePath)
+        if ([string]::IsNullOrEmpty($parentDir)) {
+            $depth = 0
+        } else {
+            $parentParts = $parentDir.Split([IO.Path]::DirectorySeparatorChar)
+            $depth = if ($parentParts[0] -eq "lib") { $parentParts.Length - 1 } else { $parentParts.Length }
+        }
+        if ($depth -eq 0) {
+            $rpathEntry = "@loader_path"
+        } else {
+            $rpathEntry = "@loader_path" + ("$([IO.Path]::DirectorySeparatorChar)..") * $depth + "$([IO.Path]::DirectorySeparatorChar)lib"
+        }
         $rpathEntry = $rpathEntry.Replace("\", "/")
+
+        $changes = @()
 
         # Fix LC_ID_DYLIB for .dylib files
         if ($file -match '\.dylib$') {
@@ -663,7 +681,7 @@ function Repair-MacOSInstallRpath {
                 if ($currentId -and $currentId.StartsWith("/")) {
                     $newId = "@rpath/" + [IO.Path]::GetFileName($currentId)
                     & install_name_tool -id $newId $file 2>$null
-                    $fixed++
+                    $changes += "id: $currentId -> $newId"
                 }
             }
         }
@@ -681,17 +699,44 @@ function Repair-MacOSInstallRpath {
             if ($inRpath -and $line -match '^\s+cmd\s') { $inRpath = $false }
         }
 
-        # Remove all existing RPATH entries
-        foreach ($rp in $rpaths) {
-            & install_name_tool -delete_rpath $rp $file 2>$null
+        # Fix RPATH only if it differs from the desired entry
+        $needsRpathFix = ($rpaths.Count -ne 1) -or ($rpaths[0] -ne $rpathEntry)
+        if ($needsRpathFix) {
+            foreach ($rp in $rpaths) {
+                & install_name_tool -delete_rpath $rp $file 2>$null
+            }
+            & install_name_tool -add_rpath $rpathEntry $file 2>$null
+            $changes += "rpath: $($rpaths -join ', ') -> $rpathEntry"
         }
 
-        # Add correct relative RPATH
-        & install_name_tool -add_rpath $rpathEntry $file 2>$null
-        $fixed++
+        # Fix absolute path LC_LOAD_DYLIB references (e.g. from plugins)
+        $prefixEscaped = [regex]::Escape($InstallPrefix)
+        $otoolLOutput = & otool -L $file 2>$null
+        foreach ($depLine in $otoolLOutput) {
+            if ($depLine -match "^\s+($prefixEscaped\S+\.dylib)\s") {
+                $absDep = $Matches[1]
+                $depFileName = [IO.Path]::GetFileName($absDep)
+                $newDep = "@rpath/$depFileName"
+                & install_name_tool -change $absDep $newDep $file 2>$null
+                $changes += "dep: $absDep -> $newDep"
+            }
+        }
+
+        if ($changes.Count -gt 0) {
+            Write-Host "  $relativePath" -ForegroundColor Cyan
+            foreach ($c in $changes) {
+                Write-Host "    $c" -ForegroundColor Gray
+            }
+            $fixed++
+        } else {
+            Write-Host "  $relativePath (ok)" -ForegroundColor DarkGray
+        }
+    }
+    if ($env:GITHUB_ACTIONS -eq "true") {
+        Write-Host "::endgroup::"
     }
 
-    Write-Host "  → RPATH fixup complete: $fixed entries modified, $skipped skipped" -ForegroundColor Green
+    Write-Host "  → RPATH fixup complete: $fixed file(s) modified" -ForegroundColor Green
 }
 
 function Test-MacOSInstallRpath {
@@ -703,6 +748,7 @@ function Test-MacOSInstallRpath {
 
     if (-not $IsMacOS) { return }
 
+    $InstallPrefix = (Resolve-Path $InstallPrefix).Path
     $libDir = Join-Path $InstallPrefix "lib"
     if (-not (Test-Path $libDir)) {
         Write-Host "  → No lib directory found, skipping RPATH verification" -ForegroundColor Yellow
@@ -717,6 +763,7 @@ function Test-MacOSInstallRpath {
         $file = $_.FullName
 
         # Skip non-Mach-O files
+        $relativeToPrefix = $file.Substring($InstallPrefix.Length + 1)
         $header = [byte[]]::new(4)
         try {
             $stream = [System.IO.File]::OpenRead($file)
@@ -726,7 +773,10 @@ function Test-MacOSInstallRpath {
             return
         }
 
-        $isMachO = ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and ($header[3] -eq 0xCE -or $header[3] -eq 0xCF)) -or
+        $isMachO = ($header[0] -eq 0xCF -and $header[1] -eq 0xFA -and $header[2] -eq 0xED -and $header[3] -eq 0xFE) -or
+                   ($header[0] -eq 0xCE -and $header[1] -eq 0xFA -and $header[2] -eq 0xED -and $header[3] -eq 0xFE) -or
+                   ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and $header[3] -eq 0xCF) -or
+                   ($header[0] -eq 0xFE -and $header[1] -eq 0xED -and $header[2] -eq 0xFA -and $header[3] -eq 0xCE) -or
                    ($header[0] -eq 0xBE -and $header[1] -eq 0xBA -and $header[2] -eq 0xFE -and $header[3] -eq 0xCA)
         if (-not $isMachO) { return }
 
