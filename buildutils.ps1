@@ -739,11 +739,12 @@ function Repair-MacOSInstallRpath {
     Write-Host "  → RPATH fixup complete: $fixed file(s) modified" -ForegroundColor Green
 }
 
-function Test-MacOSInstallRpath {
+function Test-MacOSKF6Binaries {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [string]$InstallPrefix
+        [string]$InstallPrefix,
+        [string]$ExpectedMinos = "13.0"
     )
 
     if (-not $IsMacOS) { return }
@@ -751,11 +752,11 @@ function Test-MacOSInstallRpath {
     $InstallPrefix = (Resolve-Path $InstallPrefix).Path
     $libDir = Join-Path $InstallPrefix "lib"
     if (-not (Test-Path $libDir)) {
-        Write-Host "  → No lib directory found, skipping RPATH verification" -ForegroundColor Yellow
+        Write-Host "  → No lib directory found, skipping verification" -ForegroundColor Yellow
         return
     }
 
-    Write-Host "  → Verifying macOS RPATH entries in $InstallPrefix ..." -ForegroundColor Yellow
+    Write-Host "  → Verifying macOS binaries in $InstallPrefix ..." -ForegroundColor Yellow
 
     $errors = 0
 
@@ -781,9 +782,19 @@ function Test-MacOSInstallRpath {
         if (-not $isMachO) { return }
 
         $displayName = $file.Substring($InstallPrefix.Length + 1)
+        $otoolOutput = & otool -l $file 2>$null
+
+        # Check minos version
+        $minosMatch = $otoolOutput | Select-String '^\s+minos\s+(\S+)' | Select-Object -First 1
+        if ($minosMatch) {
+            $actualMinos = $minosMatch.Matches[0].Groups[1].Value
+            if ($actualMinos -ne $ExpectedMinos) {
+                Write-Host "    [ERROR] $displayName : minos $actualMinos (expected $ExpectedMinos)" -ForegroundColor Red
+                $errors++
+            }
+        }
 
         # Check LC_RPATH for absolute paths
-        $otoolOutput = & otool -l $file 2>$null
         $inRpath = $false
         foreach ($line in $otoolOutput) {
             if ($line -match '^\s+cmd LC_RPATH') { $inRpath = $true; continue }
@@ -809,8 +820,8 @@ function Test-MacOSInstallRpath {
     }
 
     if ($errors -gt 0) {
-        throw "RPATH verification failed: $errors absolute path(s) found"
+        throw "Binary verification failed: $errors error(s) found"
     }
 
-    Write-Host "  → RPATH verification passed: no absolute paths found" -ForegroundColor Green
+    Write-Host "  → Binary verification passed: all checks OK (no absolute paths found, minos=$ExpectedMinos)" -ForegroundColor Green
 }

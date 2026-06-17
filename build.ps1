@@ -77,5 +77,5 @@ Build-CMakeProject `
 
 #region Post-build fixup
 Repair-MacOSInstallRpath -InstallPrefix "kf6redist-install"
-Test-MacOSInstallRpath -InstallPrefix "kf6redist-install"
+Test-MacOSKF6Binaries -InstallPrefix "kf6redist-install"
 #endregion

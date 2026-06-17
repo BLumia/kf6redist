@@ -24,9 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022, macos-26]
+        os: [windows-2025, macos-26, macos-26-intel]
         include:
-          - os: windows-2022
+          - os: windows-2025
             qt_arch: win64_msvc2022_64
             os_label: win
             msvc_arch: x64
@@ -35,6 +35,11 @@ jobs:
             qt_arch: clang_64
             os_label: mac
             msvc_arch: arm64 # only for upload-artifact's name
+            vs_ver: 0
+          - os: macos-26-intel
+            qt_arch: clang_64
+            os_label: mac
+            msvc_arch: x64 # only for upload-artifact's name
             vs_ver: 0
 
     env:
