@@ -53,6 +53,7 @@ Build-KF6Module -KfVer $kfver -RepoName "ki18n" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kwidgetsaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcolorscheme" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfigwidgets" -CMakeArgs "-DBUILD_TESTING=OFF"
+Build-KF6Module -KfVer $kfver -RepoName "sonnet" -CMakeArgs "-DBUILD_TESTING=OFF"
 
 # For KArchive
 Build-CMakeProject `
