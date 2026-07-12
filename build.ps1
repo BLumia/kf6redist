@@ -1,5 +1,5 @@
 param(
-    [string]$kfver = "v6.27.0"
+    [string]$kfver = "v6.28.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,7 +8,7 @@ $ProgressPreference = "SilentlyContinue"
 . "$PSScriptRoot\buildutils.ps1"
 
 #region Configuration
-$plasmaver = "v6.7.0"
+$plasmaver = "v6.7.2"
 #endregion
 
 #region Initialize build Env and VSDev Shell
@@ -48,8 +48,7 @@ Build-KF6Module -KfVer $kfver -RepoName "kitemviews" -CMakeArgs "-DBUILD_TESTING
 Build-KF6Module -KfVer $kfver -RepoName "kconfig" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcodecs" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kguiaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
-Build-KF6Module -KfVer $kfver -RepoName "ki18n" -CMakeArgs "-DBUILD_TESTING=OFF" `
-    -PatchFiles "./patches/ki18n-macos-locale-fallback-for-app-bundle.diff"
+Build-KF6Module -KfVer $kfver -RepoName "ki18n" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kwidgetsaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcolorscheme" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfigwidgets" -CMakeArgs "-DBUILD_TESTING=OFF"
@@ -58,7 +57,7 @@ Build-KF6Module -KfVer $kfver -RepoName "sonnet" -CMakeArgs "-DBUILD_TESTING=OFF
 # For KArchive
 Build-CMakeProject `
     -RepoUrl "https://github.com/madler/zlib.git" `
-    -Version "v1.3.1.2" `
+    -Version "v1.3.2" `
     -RepoName "zlib" `
     -InstallPrefix "kf6redist-install"
 
