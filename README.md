@@ -52,7 +52,7 @@ $env:CMAKE_PREFIX_PATH = "kf6redist-install"
 $env:QT_DIR = "/Users/blumia/Qt/6.10.3/macos"
 $env:PATH = "$env:QT_DIR/bin:$env:PATH"
 $env:CMAKE_PREFIX_PATH = "kf6redist-install"
-$env:MACOSX_DEPLOYMENT_TARGET = "13.0"
+$env:MACOSX_DEPLOYMENT_TARGET = "13.3"
 ```
 
 After that, simply run `build.ps1` to start build. The script will fetch required sources and build them.

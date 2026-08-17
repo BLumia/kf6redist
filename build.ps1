@@ -1,5 +1,5 @@
 param(
-    [string]$kfver = "v6.28.0"
+    [string]$kfver = "v6.29.0"
 )
 
 $ErrorActionPreference = "Stop"
