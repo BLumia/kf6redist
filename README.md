@@ -44,12 +44,12 @@ Before starting, I suggest you create a `env.local.ps1` file to set up your envi
 
 ```powershell
 # Windows example:
-$env:QT_DIR = "D:\SDK\aqt\6.10.3\msvc2022_64"
+$env:QT_DIR = "D:\SDK\aqt\6.11.2\msvc2022_64"
 $env:PATH = "$env:QT_DIR\bin;$env:PATH"
 $env:CMAKE_PREFIX_PATH = "kf6redist-install"
 
 # macOS example:
-$env:QT_DIR = "/Users/blumia/Qt/6.10.3/macos"
+$env:QT_DIR = "/Users/blumia/Qt/6.11.2/macos"
 $env:PATH = "$env:QT_DIR/bin:$env:PATH"
 $env:CMAKE_PREFIX_PATH = "kf6redist-install"
 $env:MACOSX_DEPLOYMENT_TARGET = "13.3"
@@ -99,10 +99,5 @@ Make sure you include the following files *before* bundle your application with 
 - `your.app/Contents/Resources/locale/<localeCode>/LC_MESSAHES/*.{mo,qm}` and `your.app/Contents/Resources/locale/<localeCode>/kf6_entry.desktop` for localization
 - `your.app/Contents/PlugIns/iconengines/KIconEnginePlugin.so` to ensure icon color follows your application theme
 - `your.app/Contents/PlugIns/styles/` provides `Breeze` style
-
-> [!NOTE]
-> Currently we rely on patches to ensure translations work on macOS. See `patches/` folder for patches used for `ki18n`.
-> Patches will be upstreamd to KDE in later updates. See [here](https://invent.kde.org/frameworks/ki18n/-/merge_requests/164) for historical discussion.
-> You will also need to ensure libintl respect `LANGUAGE` environment variable as well.
 
 After that, use `macdeployqt` to deploy and sign your app (e.g. `macdeployqt ./path/to/your.app -codesign="-"` for local development).
