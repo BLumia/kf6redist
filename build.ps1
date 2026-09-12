@@ -1,5 +1,5 @@
 param(
-    [string]$kfver = "v6.29.0"
+    [string]$kfver = "v6.30.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,7 +8,7 @@ $ProgressPreference = "SilentlyContinue"
 . "$PSScriptRoot\buildutils.ps1"
 
 #region Configuration
-$plasmaver = "v6.7.2"
+$plasmaver = "v6.7.5"
 #endregion
 
 #region Initialize build Env and VSDev Shell
