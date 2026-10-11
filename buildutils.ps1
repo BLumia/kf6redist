@@ -744,7 +744,7 @@ function Test-MacOSKF6Binaries {
     param(
         [Parameter(Mandatory)]
         [string]$InstallPrefix,
-        [string]$ExpectedMinos = "13.3"
+        [string]$ExpectedMinos = "14.4"
     )
 
     if (-not $IsMacOS) { return }

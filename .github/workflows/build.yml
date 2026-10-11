@@ -9,11 +9,11 @@ on:
       qt_ver:
         description: 'Qt Version to use'
         required: false
-        default: '6.11.2'
+        default: '6.12.0'
       kf_ver:
         description: 'KF Version to use'
         required: true
-        default: 'v6.30.0'
+        default: 'v6.31.0'
 
 jobs:
   build:
@@ -43,8 +43,8 @@ jobs:
             vs_ver: 0
 
     env:
-      QT_VER: ${{ inputs.qt_ver || '6.11.2' }}
-      KF_VER: ${{ inputs.kf_ver || 'v6.30.0' }}
+      QT_VER: ${{ inputs.qt_ver || '6.12.0' }}
+      KF_VER: ${{ inputs.kf_ver || 'v6.31.0' }}
       AQT_ARCH: ${{ matrix.qt_arch }}
       MSVC_ARCH: ${{ matrix.msvc_arch }}
       VS_VER: ${{ matrix.vs_ver }}

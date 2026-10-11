@@ -44,15 +44,15 @@ Before starting, I suggest you create a `env.local.ps1` file to set up your envi
 
 ```powershell
 # Windows example:
-$env:QT_DIR = "D:\SDK\aqt\6.11.2\msvc2022_64"
+$env:QT_DIR = "D:\SDK\aqt\6.12.0\msvc2022_64"
 $env:PATH = "$env:QT_DIR\bin;$env:PATH"
 $env:CMAKE_PREFIX_PATH = "kf6redist-install"
 
 # macOS example:
-$env:QT_DIR = "/Users/blumia/Qt/6.11.2/macos"
+$env:QT_DIR = "/Users/blumia/Qt/6.12.0/macos"
 $env:PATH = "$env:QT_DIR/bin:$env:PATH"
 $env:CMAKE_PREFIX_PATH = "kf6redist-install"
-$env:MACOSX_DEPLOYMENT_TARGET = "13.3"
+$env:MACOSX_DEPLOYMENT_TARGET = "14.4"
 ```
 
 After that, simply run `build.ps1` to start build. The script will fetch required sources and build them.
