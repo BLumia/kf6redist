@@ -27,11 +27,13 @@ Check-CMakePackageExists -PackageName "Python3"
 #region Build
 
 # For ki18n
-Build-CMakeProject `
-    -RepoUrl "https://github.com/BLumia/libintl.git" `
-    -Version "master" `
-    -RepoName "libintl" `
-    -InstallPrefix "kf6redist-install"
+if (-not $IsLinux) {
+    Build-CMakeProject `
+        -RepoUrl "https://github.com/BLumia/libintl.git" `
+        -Version "master" `
+        -RepoName "libintl" `
+        -InstallPrefix "kf6redist-install"
+}
 
 Build-KF6Module -KfVer $kfver -RepoName "extra-cmake-modules"
 # Requires python3 with lxml if WITH_ICON_GENERATION is enabled
@@ -43,13 +45,16 @@ if (Test-CMakePackageExists -PackageName "Perl") {
 } else {
     Write-Host "[SKIP] Perl not found, skipping syntax-highlighting build" -ForegroundColor Yellow
 }
-Build-KF6Module -KfVer $kfver -RepoName "kcoreaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
+Build-KF6Module -KfVer $kfver -RepoName "kcoreaddons" `
+    -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_PYTHON_BINDINGS=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kitemviews" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfig" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcodecs" -CMakeArgs "-DBUILD_TESTING=OFF"
-Build-KF6Module -KfVer $kfver -RepoName "kguiaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
+Build-KF6Module -KfVer $kfver -RepoName "kguiaddons" `
+    -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_PYTHON_BINDINGS=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "ki18n" -CMakeArgs "-DBUILD_TESTING=OFF"
-Build-KF6Module -KfVer $kfver -RepoName "kwidgetsaddons" -CMakeArgs "-DBUILD_TESTING=OFF"
+Build-KF6Module -KfVer $kfver -RepoName "kwidgetsaddons" `
+    -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_PYTHON_BINDINGS=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kcolorscheme" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kconfigwidgets" -CMakeArgs "-DBUILD_TESTING=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "sonnet" -CMakeArgs "-DBUILD_TESTING=OFF"
@@ -64,7 +69,8 @@ Build-CMakeProject `
 Build-KF6Module -KfVer $kfver -RepoName "karchive" `
     -CMakeArgs "-DBUILD_TESTING=OFF", "-DWITH_LIBZSTD=OFF", "-DWITH_BZIP2=OFF", "-DWITH_LIBLZMA=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kiconthemes" -CMakeArgs "-DBUILD_TESTING=OFF"
-Build-KF6Module -KfVer $kfver -RepoName "kxmlgui" -CMakeArgs "-DBUILD_TESTING=OFF"
+Build-KF6Module -KfVer $kfver -RepoName "kxmlgui" `
+    -CMakeArgs "-DBUILD_TESTING=OFF", "-DBUILD_PYTHON_BINDINGS=OFF"
 Build-KF6Module -KfVer $kfver -RepoName "kwindowsystem" -CMakeArgs "-DBUILD_TESTING=OFF"
 
 Build-CMakeProject `
