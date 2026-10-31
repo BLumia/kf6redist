@@ -179,6 +179,40 @@ function Invoke-ExternalCommand {
 
 <#
 .SYNOPSIS
+    Discover the local Qt installation via qtpaths
+.DESCRIPTION
+    qtpaths ships with Qt's qttools module (Qt >= 6.5), so as long as Qt's
+    bin dir is on PATH (CI runners get that from install-qt-action), the Qt
+    installation can be located without any environment variable such as
+    QT_DIR or QT_ROOT_DIR.
+.PARAMETER PropertyName
+    Qt property to query (qmake-style). Defaults to QT_HOST_PREFIX, the
+    install prefix of the Qt the host tools themselves are built against.
+.OUTPUTS
+    The queried path (e.g. "C:/Qt/6.12.0/msvc2022_64" or "/opt/Qt/6.12.0/macos"),
+    or $null when qtpaths is not on PATH or reports no usable path.
+.EXAMPLE
+    $qtDir = Get-QtInstallDir
+    if (-not $qtDir) { throw "Qt not found" }
+#>
+function Get-QtInstallDir {
+    [CmdletBinding()]
+    param(
+        [string]$PropertyName = "QT_HOST_PREFIX"
+    )
+
+    $qtpaths = Get-Command qtpaths -ErrorAction SilentlyContinue
+    if (-not $qtpaths) { $qtpaths = Get-Command qtpaths6 -ErrorAction SilentlyContinue }
+    if (-not $qtpaths) { return $null }
+
+    $raw = & $qtpaths.Source --qt-query $PropertyName 2>$null | Select-Object -First 1
+    $result = "$raw".Trim()
+    if (-not $result -or -not (Test-Path -LiteralPath $result)) { return $null }
+    return $result
+}
+
+<#
+.SYNOPSIS
     Patch kf6redist tool rpaths for macOS
 .DESCRIPTION
     kf6redist tools (e.g. kconfig_compiler_kf6) use relative @loader_path rpaths,
@@ -188,21 +222,27 @@ function Invoke-ExternalCommand {
     using install_name_tool, so they can find Qt frameworks at runtime.
 
     Skips binaries that already have the correct rpath (idempotent).
+
+    The Qt lib dir is discovered via Get-QtInstallDir (QT_HOST_LIBS), so callers
+    only need Qt's bin dir on PATH (CI runners get that from install-qt-action).
 .PARAMETER KF6InstallPrefix
     Path to the kf6redist install prefix (default: from CMAKE_PREFIX_PATH env)
-.PARAMETER QtLibDir
-    Path to the Qt lib directory (default: from QT_DIR env)
 #>
 function Patch-KF6ToolsRpath {
     [CmdletBinding()]
     param(
-        [string]$KF6InstallPrefix = $env:CMAKE_PREFIX_PATH,
-        [string]$QtLibDir = "$(if ($env:QT_DIR) { "$env:QT_DIR/lib" })"
+        [string]$KF6InstallPrefix = $env:CMAKE_PREFIX_PATH
     )
 
     if (-not $IsMacOS) { return }
-    if (-not $KF6InstallPrefix -or -not $QtLibDir) {
-        Write-Host "  → Skipping rpath patch (CMAKE_PREFIX_PATH or QT_DIR not set)" -ForegroundColor Gray
+    if (-not $KF6InstallPrefix) {
+        Write-Host "  → Skipping rpath patch (CMAKE_PREFIX_PATH not set)" -ForegroundColor Gray
+        return
+    }
+
+    $qtLibDir = Get-QtInstallDir -PropertyName "QT_HOST_LIBS"
+    if (-not $qtLibDir) {
+        Write-Host "  → Skipping rpath patch (qtpaths not found on PATH or reported no usable Qt lib dir)" -ForegroundColor Gray
         return
     }
 
@@ -210,10 +250,10 @@ function Patch-KF6ToolsRpath {
     if (-not (Test-Path $toolDir)) { return }
 
     Get-ChildItem -Path $toolDir -File | ForEach-Object {
-        $existing = & otool -l $_.FullName 2>&1 | Select-String "path $QtLibDir"
+        $existing = & otool -l $_.FullName 2>&1 | Select-String "path $qtLibDir"
         if (-not $existing) {
             Write-Host "  → Patching rpath: $($_.Name)" -ForegroundColor Yellow
-            & install_name_tool -add_rpath $QtLibDir $_.FullName 2>&1 | Out-Null
+            & install_name_tool -add_rpath $qtLibDir $_.FullName 2>&1 | Out-Null
         }
     }
 }

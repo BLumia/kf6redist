@@ -28,26 +28,15 @@ jobs:
         include:
           - os: windows-2025
             qt_arch: win64_msvc2022_64
-            os_label: win
-            msvc_arch: x64
-            vs_ver: 2022
           - os: macos-26
             qt_arch: clang_64
-            os_label: mac
-            msvc_arch: arm64 # only for upload-artifact's name
-            vs_ver: 0
           - os: macos-26-intel
             qt_arch: clang_64
-            os_label: mac
-            msvc_arch: x64 # only for upload-artifact's name
-            vs_ver: 0
 
     env:
       QT_VER: ${{ inputs.qt_ver || '6.12.0' }}
       KF_VER: ${{ inputs.kf_ver || 'v6.31.0' }}
       AQT_ARCH: ${{ matrix.qt_arch }}
-      MSVC_ARCH: ${{ matrix.msvc_arch }}
-      VS_VER: ${{ matrix.vs_ver }}
 
     steps:
     - uses: actions/checkout@v6
@@ -88,5 +77,5 @@ jobs:
 
     - uses: actions/upload-artifact@v7
       with:
-        name: "${{ matrix.os_label }}-${{ env.MSVC_ARCH }}-vs${{ env.VS_VER }}-qt${{ env.QT_VER }}-kf${{ env.KF_VER }}"
+        name: "${{ matrix.os }}-${{ matrix.qt_arch }}-qt${{ env.QT_VER }}-kf${{ env.KF_VER }}"
         path: kf6redist-install/*
