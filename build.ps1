@@ -8,7 +8,7 @@ $ProgressPreference = "SilentlyContinue"
 . "$PSScriptRoot\buildutils.ps1"
 
 #region Configuration
-$plasmaver = "v6.7.5"
+$plasmaver = "v6.8.2"
 #endregion
 
 #region Initialize build Env and VSDev Shell
